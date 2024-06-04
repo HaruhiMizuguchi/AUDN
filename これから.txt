@@ -1,0 +1,3 @@
+プロトタイプ分類器の出力のラベルの値を、0-mからn_source_class-num_all_classにする
+w_alphaの更新
+全体の学習の流れの確認と実装

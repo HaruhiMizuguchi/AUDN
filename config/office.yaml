@@ -1,0 +1,38 @@
+data:
+  dataset:
+    name: office
+    root_path: data/office/domain_adaptation_images
+    souce: amazon
+    target: dslr
+    n_source_private: 10
+    n_share: 10
+    n_target_private: 11
+    n_total: 31
+  
+  dataloader:
+    class_balance: false
+    data_workers: 3
+    batch_size: 36
+
+  model:
+    base_model: resnet50 # choices=['resnet50']
+    pretrained_model: # /path/to/pretrained/model
+
+  train:
+    min_step: 20000
+    lr: 0.001
+    weight_decay: 0.0005
+    momentum: 0.9
+
+  test:
+    test_interval: 500
+    test_only: false
+    resume_file: '' # model to test
+    w_0: -0.5
+
+  misc:
+    gpys: 1 # how many GPUs to be used, 0 indicates CPU only
+
+  log:
+    root_dir: log
+    log_interval: 10
