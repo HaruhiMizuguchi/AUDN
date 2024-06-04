@@ -23,6 +23,7 @@ Flow:
 from sklearn.cluster import KMeans
 from torch.utils.data import Dataset, DataLoader, Subset, ConcatDataset
 from utils import calculate_transfer_score
+from torch.nn import functional as F
 import torch
 import numpy as np
 
@@ -68,7 +69,22 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
     return max_w_cluster_dataset, max_w_cluster_centroid, transferrable_not_max_w_cluster_dataset, nontransferrable_dataset
     
 
-def calc_gradient()
+def calc_gradient(nontransferrable_dataset, feature_extractor, source_classifier):
+    gradients = []
+    for data, _ in nontransferrable_dataset:
+        data = data.to(device)
+        features = feature_extractor(data)
+        outputs = source_classifier(features)
+        pseudo_label = torch.argmax(outputs)
+        loss = F.cross_entropy(outputs, torch.tensor([pseudo_label]).to(device))
+        
+        # 最終層のパラメータの勾配を取得
+        source_classifier.zero_grad()
+        loss.backward()
+        gradient = source_classifier.classifier[-1].weight.grad.cpu().numpy().flatten() # 最終層の重み行列の勾配を取得
+        
+        gradients.append(gradient)
+    return gradients
 
 def psuedo_labeling(max_w_cluster_dataset, centroid, feature_extractor, source_classifier):
     plt_features = [max_w_cluster_dataset[i][0] for i in range(len(max_w_cluster_dataset))]
