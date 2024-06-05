@@ -26,7 +26,7 @@ from utils import calculate_transfer_score
 from torch.nn import functional as F
 import torch
 import numpy as np
-
+from globals import *
 
 def Kmeans(D_ut_train, k):
     # 特徴量を抽出する
@@ -45,14 +45,14 @@ def clustering(D_ut_train, k, mode: str):
     if mode == "Kmeans":
         return Kmeans(D_ut_train, k)
 
-def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator, β):
+def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator):
     w_centroids = [calculate_transfer_score(centroid, source_classifier, domain_discriminator) for centroid in centroids]
     # 最大のw_centroidのインデックスを取得
     max_index = np.argmax(w_centroids)
     # 最大ではないかつβを超える要素のインデックスを取得
-    above_beta_not_max_indices = [i for i, value in enumerate(w_centroids) if (value > β and i != max_index)]
+    above_beta_not_max_indices = [i for i, value in enumerate(w_centroids) if (value > beta and i != max_index)]
     # β以下の要素のインデックスを取得
-    below_beta_indices = [i for i, value in enumerate(w_centroids) if value <= β]
+    below_beta_indices = [i for i, value in enumerate(w_centroids) if value <= beta]
     
     # 抽出されたデータポイントのインデックスを取得
     max_cluster_indices = [i for i, label in enumerate(cluster_labels) if label == max_index]
@@ -70,7 +70,7 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
     
 
 def calc_gradient(nontransferrable_dataset, feature_extractor, source_classifier):
-    gradients = []
+    gradient_norms = []
     for data, _ in nontransferrable_dataset:
         data = data.to(device)
         features = feature_extractor(data)
@@ -82,9 +82,11 @@ def calc_gradient(nontransferrable_dataset, feature_extractor, source_classifier
         source_classifier.zero_grad()
         loss.backward()
         gradient = source_classifier.classifier[-1].weight.grad.cpu().numpy().flatten() # 最終層の重み行列の勾配を取得
-        
-        gradients.append(gradient)
-    return gradients
+        # 勾配のノルムを計算
+        gradient_norm = np.linalg.norm(gradient)
+        gradient_norms.append(gradient_norm)
+
+    return gradient_norms
 
 def psuedo_labeling(max_w_cluster_dataset, centroid, feature_extractor, source_classifier):
     plt_features = [max_w_cluster_dataset[i][0] for i in range(len(max_w_cluster_dataset))]
@@ -93,21 +95,21 @@ def psuedo_labeling(max_w_cluster_dataset, centroid, feature_extractor, source_c
     D_plt_new = torch.utils.data.TensorDataset(plt_features, Y_plt)
     return D_plt_new
 
-def AL_labeling(nontransferrable_dataset, n_r):
+def AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, n_r):
     ##############
     # 勾配の計算
     ##############
-    gradients
+    gradients_norm = calc_gradient(nontransferrable_dataset, feature_extractor, source_classifier)
     # トップn_r個とそれ以外のもののインデックスを取得
-    top_n_r_indices = np.argsort(gradients)[-n_r:]
-    other_indices = [i for i in range(len(gradients)) if i not in top_n_r_indices]
+    top_n_r_indices = np.argsort(gradients_norm)[-n_r:]
+    other_indices = [i for i in range(len(gradients_norm)) if i not in top_n_r_indices]
     # トップn_r個のデータセットを抽出
     labeled_nontransferrable_dataset = [nontransferrable_dataset[i] for i in top_n_r_indices]
     not_labeled_nontransferrable_dataset = [nontransferrable_dataset[i] for i in other_indices]
     
     return labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset
 
-def run_CNTGE(D_ut_train, D_lt, D_plt, source_classifier, domain_discriminator, k, beta, n_r):
+def run_CNTGE(D_ut_train, D_lt, D_plt, source_classifier, domain_discriminator, k, n_r):
     
     centroids, cluster_labels = clustering(D_ut_train, k, mode="Kmeans")
     max_w_cluster_dataset, max_w_cluster_centroid, transferrable_not_max_w_cluster_dataset, nontransferrable_dataset = devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator, beta)
@@ -121,5 +123,9 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, source_classifier, domain_discriminator, 
     D_plt = ConcatDataset([D_plt, D_plt_new])
     # ターゲットの未ラベルデータを、ALまたはPLしなかったものに更新
     D_ut_train = ConcatDataset([transferrable_not_max_w_cluster_dataset, not_labeled_nontransferrable_dataset])
+    # データローダに変換
+    D_ut_train_loader = DataLoader(D_ut_train, batch_size=batch_size, shuffle=True)
+    D_lt_loader = DataLoader(D_lt, batch_size=batch_size, shuffle=True)
+    D_plt_loader = DataLoader(D_plt, batch_size=batch_size, shuffle=True)
     
-    return D_ut_train, D_lt, D_plt
+    return D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader

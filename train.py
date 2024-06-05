@@ -6,28 +6,19 @@ import torch.optim as optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
 from net import feature_extractor, source_classifier, domain_discriminator, prototype_classifier
 from CNTGE import run_CNTGE
 from utils import calculate_transfer_score, predict
+from globals import *
 
-# ハイパーパラメータ (config.yaml から読み込む)
-# 例:
-# learning_rate = config['learning_rate']
-# batch_size = config['batch_size']
-# epochs = config['epochs']
-# ...
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, lt_preds, w_alpha):
+def get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds):
     ws = np.array([calculate_transfer_score(x, source_classifier, domain_discriminator) for x in ut_features])
-    V = np.sum(lt_preds[ws >= w_alpha], axis=0) / np.sum(ws >= w_alpha)
+    V = np.sum(ut_preds[ws >= w_alpha], axis=0) / np.sum(ws >= w_alpha)
     weights = np.array([V[label_idx] for label_idx in s_label])
     return weights
 
 def train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer, alpha, w_0):
+                D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer):
     """
     1エポック分の学習を行う関数
 
@@ -69,8 +60,8 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         lt_preds = source_classifier(lt_features)
 
         # 共通ラベルのインデックスを取得
-        common_label_indices = (lt_label < num_source_classes).nonzero().squeeze()
-        private_label_indices = (lt_label >= num_source_classes).nonzero().squeeze()
+        common_label_indices = (lt_label < n_source_classes).nonzero().squeeze()
+        private_label_indices = (lt_label >= n_source_classes).nonzero().squeeze()
 
         # 共通ラベルのデータのみで損失を計算
         if common_label_indices.numel() > 0:
@@ -86,7 +77,7 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         
         # --- 転送スコアと重みの計算 ---
         ut_transfer_scores = np.array([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
-        source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, lt_preds, w_alpha)
+        source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
 
         # --- 敵対的カリキュラム学習 L_adv ---
         adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds)) + \

@@ -8,6 +8,7 @@ data:
     n_share: 10
     n_target_private: 11
     n_total: 31
+    n_r: 10
   
   dataloader:
     class_balance: false
@@ -23,6 +24,11 @@ data:
     lr: 0.001
     weight_decay: 0.0005
     momentum: 0.9
+    AL_round: 15
+    alpha: 0.2
+    beta: 1.5
+    tau: 0.05
+    w_0: 1.0
 
   test:
     test_interval: 500

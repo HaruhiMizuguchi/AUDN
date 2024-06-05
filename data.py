@@ -34,7 +34,7 @@ def load_yaml(file_path):
         config = yaml.safe_load(file)
     return config
 
-def create_dataset_dataloader():
+def create_dataset_dataloader(dataset_name, source_domain, target_domain, batch_size, n_source_private, n_share, n_target_private):
     # どのデータセットを使うか決めるyamlを読み込む
     dataset_to_use_path = 'dataset_to_use.yaml'
     dataset_name = load_yaml(dataset_to_use_path)['dataset']
