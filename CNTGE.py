@@ -28,22 +28,23 @@ import torch
 import numpy as np
 from globals import *
 
-def Kmeans(D_ut_train, k):
+def Kmeans(D_ut_train, feature_extracter, k):
     # 特徴量を抽出する
-    features = [D_ut_train[i][0].numpy().flatten() for i in range(len(D_ut_train))]
+    features = feature_extracter(torch.tensor(np.array([D_ut_train[i][0].numpy() for i in range(len(D_ut_train))])))
+    # print(features.size())
     # K-meansクラスタリング
     kmeans = KMeans(n_clusters=k)
-    kmeans.fit(np.array(features))
+    kmeans.fit(features)
 
     # クラスタ中心とラベルの取得
-    centroids = kmeans.cluster_centers_
-    labels = kmeans.labels_
-    
+    centroids = torch.tensor(kmeans.cluster_centers_.reshape(k, b, c, d))
+    labels = torch.tensor(kmeans.labels_)
+    print(centroids[0].shape)
     return centroids, labels
 
-def clustering(D_ut_train, k, mode: str):
+def clustering(D_ut_train, k, feature_extracter, mode: str):
     if mode == "Kmeans":
-        return Kmeans(D_ut_train, k)
+        return Kmeans(D_ut_train, feature_extracter, k)
 
 def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator):
     w_centroids = [calculate_transfer_score(centroid, source_classifier, domain_discriminator) for centroid in centroids]
@@ -109,10 +110,10 @@ def AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, 
     
     return labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset
 
-def run_CNTGE(D_ut_train, D_lt, D_plt, source_classifier, domain_discriminator, k, n_r):
+def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, k, n_r):
     
-    centroids, cluster_labels = clustering(D_ut_train, k, mode="Kmeans")
-    max_w_cluster_dataset, max_w_cluster_centroid, transferrable_not_max_w_cluster_dataset, nontransferrable_dataset = devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator, beta)
+    centroids, cluster_labels = clustering(D_ut_train, k, feature_extractor, mode="Kmeans")
+    max_w_cluster_dataset, max_w_cluster_centroid, transferrable_not_max_w_cluster_dataset, nontransferrable_dataset = devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator)
     
     D_plt_new = psuedo_labeling(max_w_cluster_dataset, max_w_cluster_centroid)
     labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset = AL_labeling(nontransferrable_dataset, n_r)

@@ -8,16 +8,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from net import feature_extractor, source_classifier, domain_discriminator
 from CNTGE import run_CNTGE
-from utils import calculate_transfer_score, predict
+from utils import *
 from globals import *
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds):
-    ws = np.array([calculate_transfer_score(x, source_classifier, domain_discriminator) for x in ut_features])
-    V = np.sum(ut_preds[ws >= w_alpha], axis=0) / np.sum(ws >= w_alpha)
-    weights = np.array([V[label_idx] for label_idx in s_label])
-    return weights
 
 def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminator,
                 D_s_loader, D_ut_train_loader, optimizer):
@@ -62,11 +54,11 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         ut_domain_preds = domain_discriminator(ut_features)
         
         # --- 転送スコアと重みの計算 ---
-        ut_transfer_scores = np.array([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
+        ut_transfer_scores = torch.tensor(np.array([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator).detach().numpy() for ut_feature in ut_features]))
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
         
-        # --- 敵対的カリキュラム学習 L_adv ---
-        adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds)) + \
+        # --- 敵対的カリキュラム学習 L_adv ---)
+        adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
                                         torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds))
                                         
         # --- 多様性カリキュラム学習 L_div ---

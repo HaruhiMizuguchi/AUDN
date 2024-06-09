@@ -11,8 +11,6 @@ data:
     n_r: 10
   
   dataloader:
-    class_balance: false
-    data_workers: 3
     batch_size: 36
 
   model:
@@ -20,8 +18,7 @@ data:
     pretrained_model: # /path/to/pretrained/model
 
   train:
-    min_step: 20000
-    lr: 0.001
+    lr: 0.01
     weight_decay: 0.0005
     momentum: 0.9
     AL_round: 15

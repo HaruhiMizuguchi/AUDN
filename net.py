@@ -1,21 +1,18 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet50
+from torchvision.models import resnet50, ResNet50_Weights
 
-class GradientReverseLayer(torch.autograd.Function):
+class GradientReverseLayer(nn.Module):
     """
     勾配反転層 (GRL) を実装するクラス
     """
-    @staticmethod
-    def forward(ctx, x, alpha):
-        ctx.alpha = alpha
-        return x.view_as(x)
+    def __init__(self, alpha):
+        super().__init__()
+        self.alpha = alpha
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        output = grad_output.neg() * ctx.alpha
-        return output, None
+    def forward(self, x):
+        return x * -self.alpha  # 勾配を反転させる処理
 
 class feature_extractor(nn.Module):
     """
@@ -23,7 +20,8 @@ class feature_extractor(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        self.resnet = resnet50(pretrained=True)
+        self.resnet = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+        #self.resnet = resnet50()
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])  # 最終層を除去
 
     def forward(self, x):
@@ -38,7 +36,7 @@ class source_classifier(nn.Module):
     def __init__(self, num_source_classes):
         super().__init__()
         self.classifier = nn.Sequential(
-            nn.Linear(256, 256),  # ボトルネック層
+            nn.Linear(2048, 256),  # ボトルネック層
             nn.ReLU(),
             nn.Linear(256, num_source_classes)  # 全結合層
         )
@@ -52,11 +50,11 @@ class domain_discriminator(nn.Module):
     """
     def __init__(self, alpha):
         super().__init__()
-        self.alpha = alpha
+        self.grl = GradientReverseLayer(alpha)  # GRLをインスタンス化
         self.discriminator = nn.Sequential(
-            nn.Linear(256, 256),  # ボトルネック層
+            nn.Linear(2048, 256),  # ボトルネック層
             nn.ReLU(),
-            GradientReverseLayer.apply,  # 勾配反転層
+            self.grl,  # GRLのインスタンスを使用
             nn.Linear(256, 1024),
             nn.ReLU(),
             nn.Dropout(),
@@ -68,20 +66,17 @@ class domain_discriminator(nn.Module):
         )
 
     def forward(self, x):
-        x = self.discriminator[0:2](x)  # Linear and ReLU
-        x = self.discriminator[2](x, self.alpha)  # Gradient Reverse Layer with alpha
-        x = self.discriminator[3:](x)  # Rest of the layers
-        return x
+        return self.discriminator(x)
 
 class prototype_classifier(nn.Module):
     """
     プロトタイプ分類器 (Gp) を実装するクラス
     """
-    def __init__(self):
+    def __init__(self, tau=0.05):
         super().__init__()
-        self.bottleneck = nn.Linear(256, 256)  # ボトルネック層
+        self.bottleneck = nn.Linear(2048, 256)  # ボトルネック層
         self.prototypes = nn.Parameter(torch.Tensor(0, 256))  # プロトタイプ (初期状態ではユニット数0)
-        self.tau = 0.05  # 温度パラメータτ
+        self.tau = tau  # 温度パラメータτ
 
     def forward(self, x):
         x = F.relu(self.bottleneck(x))
