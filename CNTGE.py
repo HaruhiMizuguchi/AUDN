@@ -80,12 +80,8 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
     transferrable_not_max_w_cluster_dataset = Subset(D_ut_train, above_beta_not_max_cluster_indices)
     nontransferrable_dataset = Subset(D_ut_train, below_beta_cluster_indices)
     """
-    max_w_cluster_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in max_cluster_indices])
-    max_w_cluster_labels = torch.tensor([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in max_cluster_indices])
-    transferrable_not_max_w_cluster_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in above_beta_not_max_cluster_indices])
-    transferrable_not_max_w_cluster_labels = torch.stack([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in above_beta_not_max_cluster_indices])
-    nontransferrable_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in below_beta_cluster_indices])
-    nontransferrable_labels = torch.stack([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in below_beta_cluster_indices])
+
+    # 特徴量とラベルのテンソルを使用して新しいデータセットを作成
     
     class TensorDataset(Dataset):
         def __init__(self, features, labels):
@@ -98,10 +94,30 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
         def __getitem__(self, idx):
             return self.features[idx], self.labels[idx]
         
-    # 特徴量とラベルのテンソルを使用して新しいデータセットを作成
+    if len(max_cluster_indices) != 0:
+        max_w_cluster_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in max_cluster_indices])
+        max_w_cluster_labels = torch.tensor([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in max_cluster_indices])
+    else:
+        max_w_cluster_features = torch.empty((0, 224, 224, 3))
+        max_w_cluster_labels = torch.empty((0,))
     max_w_cluster_dataset = TensorDataset(max_w_cluster_features, max_w_cluster_labels)
+
+    if len(above_beta_not_max_cluster_indices) != 0:
+        transferrable_not_max_w_cluster_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in above_beta_not_max_cluster_indices])
+        transferrable_not_max_w_cluster_labels = torch.stack([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in above_beta_not_max_cluster_indices])
+    else:
+        transferrable_not_max_w_cluster_features = torch.empty((0, 224, 224, 3))
+        transferrable_not_max_w_cluster_labels = torch.empty((0,))
     transferrable_not_max_w_cluster_dataset = TensorDataset(transferrable_not_max_w_cluster_features, transferrable_not_max_w_cluster_labels)
+    
+    if len(below_beta_cluster_indices) != 0:
+        nontransferrable_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in below_beta_cluster_indices])
+        nontransferrable_labels = torch.stack([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in below_beta_cluster_indices])
+    else:
+        nontransferrable_features = torch.empty((0, 224, 224, 3))
+        nontransferrable_labels = torch.empty((0,))
     nontransferrable_dataset = TensorDataset(nontransferrable_features, nontransferrable_labels)
+    
     
     max_w_cluster_centroid = centroids[max_index]
     
