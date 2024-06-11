@@ -42,9 +42,10 @@ def Kmeans(D_ut_train, feature_extracter, k):
     # 特徴量を抽出する
     features = torch.stack([D_ut_train[i][0].to(device) for i in range(len(D_ut_train))])
     features = process_in_batches(feature_extracter, features, batch_size)
-    print(features.size())
-    #features = feature_extracter(features)
-    # print(features.size())
+    if np.isnan(features).any():
+        print("NaN found in features:")
+        print(features)
+        #print(features[np.isnan(features).any(axis=1)])
     # K-meansクラスタリング
     kmeans = KMeans(n_clusters=k)
     kmeans.fit(features)
@@ -69,11 +70,8 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
     
     # 抽出されたデータポイントのインデックスを取得
     max_cluster_indices = [i for i, label in enumerate(cluster_labels) if label == max_index]
-    print(max_cluster_indices)
     above_beta_not_max_cluster_indices = [i for i, label in enumerate(cluster_labels) if label in above_beta_not_max_indices]
-    print(above_beta_not_max_cluster_indices)
     below_beta_cluster_indices = [i for i, label in enumerate(cluster_labels) if label in below_beta_indices]
-    print(below_beta_cluster_indices)
     
     # Subsetデータセットを作成
     """max_w_cluster_dataset = Subset(D_ut_train, max_cluster_indices)
@@ -104,7 +102,7 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
 
     if len(above_beta_not_max_cluster_indices) != 0:
         transferrable_not_max_w_cluster_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in above_beta_not_max_cluster_indices])
-        transferrable_not_max_w_cluster_labels = torch.stack([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in above_beta_not_max_cluster_indices])
+        transferrable_not_max_w_cluster_labels = torch.tensor([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in above_beta_not_max_cluster_indices])
     else:
         transferrable_not_max_w_cluster_features = torch.empty((0, 224, 224, 3))
         transferrable_not_max_w_cluster_labels = torch.empty((0,))
@@ -112,7 +110,7 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
     
     if len(below_beta_cluster_indices) != 0:
         nontransferrable_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in below_beta_cluster_indices])
-        nontransferrable_labels = torch.stack([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in below_beta_cluster_indices])
+        nontransferrable_labels = torch.tensor([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in below_beta_cluster_indices])
     else:
         nontransferrable_features = torch.empty((0, 224, 224, 3))
         nontransferrable_labels = torch.empty((0,))
@@ -127,7 +125,7 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
 def calc_gradient(nontransferrable_dataset, feature_extractor, source_classifier):
     gradient_norms = []
     for data, _ in nontransferrable_dataset:
-        data = data.to(device)
+        data = data.to(device).unsqueeze(0)
         features = feature_extractor(data)
         outputs = source_classifier(features)
         pseudo_label = torch.argmax(outputs)
@@ -166,6 +164,7 @@ def AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, 
 
 def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, k, n_r):
     
+    print("start CNTGE")
     centroids, cluster_labels = clustering(D_ut_train, k, feature_extractor, mode="Kmeans")
     max_w_cluster_dataset, max_w_cluster_centroid, transferrable_not_max_w_cluster_dataset, nontransferrable_dataset = devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator)
     
@@ -178,9 +177,12 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     D_plt = ConcatDataset([D_plt, D_plt_new])
     # ターゲットの未ラベルデータを、ALまたはPLしなかったものに更新
     D_ut_train = ConcatDataset([transferrable_not_max_w_cluster_dataset, not_labeled_nontransferrable_dataset])
+    print(D_ut_train[0][0].size())
     # データローダに変換
     D_ut_train_loader = DataLoader(D_ut_train, batch_size=batch_size, shuffle=True)
     D_lt_loader = DataLoader(D_lt, batch_size=batch_size, shuffle=True)
     D_plt_loader = DataLoader(D_plt, batch_size=batch_size, shuffle=True)
+    
+    print("finish CNTGE")
     
     return D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader

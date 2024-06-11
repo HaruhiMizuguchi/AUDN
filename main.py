@@ -43,16 +43,17 @@ for round in range(AL_round):
     
     # --- CNTGE ---
     D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader = \
-        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, n_r, n_r)
+       CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, n_r, n_r)
     
     # --- 敵対的・多様性カリキュラム学習とプロトタイプ分類器学習 ---
-    """for epoch in range(steps_per_epoch):
+    """
+    for epoch in range(steps_per_epoch):
         loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
                         D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
         print(f"Epoch {epoch+1}/{steps_per_epoch}, Loss: {loss:.4f}")
         t += 1
-        w_alpha = w_0 + (1 - max(t, min_step)/AL_round*steps_per_epoch) * alpha"""
-
+        w_alpha = w_0 + (1 - max(t, min_step)/AL_round*steps_per_epoch) * alpha
+    """
     # --- 検証 ---
-    accuracy = train.validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
-    print(f"Accuracy: {accuracy:.4f}")
+    # accuracy = train.validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
+    # print(f"Accuracy: {accuracy:.4f}")

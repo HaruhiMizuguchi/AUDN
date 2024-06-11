@@ -5,6 +5,18 @@ from torchvision import transforms
 from PIL import Image
 import os
 
+def check_nan(dataloader):
+    nan_found = False
+    for images, labels in dataloader:
+        if torch.isnan(images).any():
+            nan_found = True
+            print("NaN found in images:")
+            nan_indices = torch.isnan(images).any(dim=[1, 2, 3])
+            print(f"Images: {images[nan_indices]}")
+            print(f"Labels: {labels[nan_indices]}")
+    if not nan_found:
+        print("No NaN found in images")
+
 class DomainAdaptationDataset(Dataset):
     def __init__(self, data_file, domain, label_range):
         self.data = []
@@ -59,18 +71,31 @@ def create_dataset_dataloader(dataset_name, source_domain, target_domain, batch_
 
     # データセットを作成
     D_s = DomainAdaptationDataset(f'data/{dataset_name}/images_and_labels.txt', source_domain, source_private_labels.union(shared_labels))
+    print(len(D_s))
     D_t = DomainAdaptationDataset(f'data/{dataset_name}/images_and_labels.txt', target_domain, target_private_labels.union(shared_labels))
 
     # データを8:2の割合で訓練データとテストデータに分割
     target_train_size = int(0.8 * len(D_t))
     target_test_size = len(D_t) - target_train_size
     D_ut_train, D_t_test = random_split(D_t, [target_train_size, target_test_size])
+    print(len(D_ut_train))
+    print(len(D_t_test))
 
     # データローダを作成
     D_s_loader = DataLoader(D_s, batch_size=batch_size, shuffle=True)
     D_ut_train_loader = DataLoader(D_ut_train, batch_size=batch_size, shuffle=True)
     D_t_test_loader = DataLoader(D_t_test, batch_size=batch_size, shuffle=False)
     
+    # NaNのチェック
+    """print("Checking source domain data:")
+    check_nan(D_s_loader)
+
+    print("Checking target domain training data:")
+    check_nan(D_ut_train_loader)
+
+    print("Checking target domain test data:")
+    check_nan(D_t_test_loader)
+    """
     return D_s, D_ut_train, D_t_test, D_s_loader, D_ut_train_loader, D_t_test_loader
 
 """# データローダの動作確認

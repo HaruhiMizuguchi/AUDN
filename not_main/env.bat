@@ -7,3 +7,4 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 pip install tqdm
 pip install scikit-learn
 pip install pyyaml
+mkdir data/office/domain_adaptation_images && tar -xzvf data/office/domain_adaptation_images.tar.gz -C data/office/domain_adaptation_images

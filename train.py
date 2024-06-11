@@ -40,12 +40,19 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
     total_loss = 0
     
     for (s_data, s_label), (ut_data, _), (lt_data, lt_label), (plt_data, plt_label) in tqdm(zip(D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader)):
-        s_data, s_label, ut_data, lt_data, lt_label, plt_data, plt_label = s_data.to(device), s_label.to(device), ut_data.to(device), lt_data.to(device), lt_label.to(device), plt_data.to(device), plt_label.to(device)
-        
+        #s_data, s_label, ut_data, lt_data, lt_label, plt_data, plt_label = s_data.to(device), s_label.to(device), ut_data.to(device), lt_data.to(device), lt_label.to(device), plt_data.to(device), plt_label.to(device)
+        s_data, s_label = s_data.to(device), s_label.to(device)
+        ut_data = ut_data.to(device)
+        lt_data, lt_label = lt_data.to(device), lt_label.to(device)
+        plt_data, plt_label = plt_data.to(device), plt_label.to(device)
         # 特徴抽出
         s_features = feature_extractor(s_data)
         ut_features = feature_extractor(ut_data)
         lt_features = feature_extractor(lt_data)
+        print("s_data_size=",s_data.size())
+        print("ut_data_size=",ut_data.size())
+        print("lt_data_size=",lt_data.size())
+        print("plt_data_size=",plt_data.size())
         plt_features = feature_extractor(plt_data)
         
         # --- ソースラベル分類器の学習 L_C ---
@@ -70,16 +77,16 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         lt_common_domain_preds = domain_discriminator(lt_features[common_label_indices])
         
         # --- 転送スコアと重みの計算 ---
-        ut_transfer_scores = torch.tensor(np.array([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features]))
+        ut_transfer_scores = torch.tensor(np.array([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator).detach().numpy() for ut_feature in ut_features]))
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
 
         # --- 敵対的カリキュラム学習 L_adv ---
         adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
-                                        torch.mean((ut_transfer_scores >= w_0).float() * torch.log(ut_domain_preds)) + \
+                                        torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds)) + \
                                         torch.mean(torch.log(lt_common_domain_preds))
                                         
         # --- 多様性カリキュラム学習 L_div ---
-        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < w_0).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
+        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
                                                                                         torch.log(F.softmax(ut_preds, dim=1)), dim=1))) \
                                     - torch.mean(torch.sum(F.softmax(source_classifier(lt_features[private_label_indices]), dim=1) * \
                                         torch.log(F.softmax(source_classifier(lt_features[private_label_indices]), dim=1))))

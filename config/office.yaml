@@ -11,7 +11,7 @@ data:
     n_r: 10
   
   dataloader:
-    batch_size: 36
+    batch_size: 32
 
   model:
     base_model: resnet50 # choices=['resnet50']
