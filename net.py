@@ -25,8 +25,14 @@ class feature_extractor(nn.Module):
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])  # 最終層を除去
 
     def forward(self, x):
-        x = self.resnet(x)
+        # x = self.resnet(x)
+        for layer in self.resnet:
+            x = layer(x)
+            if torch.isnan(x).any() or torch.isinf(x).any():
+                print(f"NaN or Inf detected after layer {layer}")
+                return x
         x = x.view(x.size(0), -1)
+        print(f"Output shape: {x.shape}")
         return x
 
 class source_classifier(nn.Module):

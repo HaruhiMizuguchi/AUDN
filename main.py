@@ -1,5 +1,5 @@
 import torch.optim as optim
-import CNTGE, train, train_warmup
+import CNTGE, train, train_wo_plt, train_warmup
 from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
 from data import create_dataset_dataloader
 from globals import *
@@ -34,26 +34,37 @@ T = AL_round * steps_per_epoch
 
 # 学習
 # --- Warm Up ---
-#loss = train_warmup.train_warmup_epoch(feature_extractor, source_classifier, domain_discriminator,
-#                D_s_loader, D_ut_train_loader, optimizer)
+loss = train_warmup.train_warmup_epoch(feature_extractor, source_classifier, domain_discriminator,
+                D_s_loader, D_ut_train_loader, optimizer)
+
+random_tensor = torch.randn(3, 224, 224).unsqueeze(0).to(device)
+extracted_tensor = feature_extractor(random_tensor)
+contains_nan = torch.isnan(extracted_tensor).any().item()
+if contains_nan:
+    print("テンソルにはNaNが含まれています。")
+else:
+    print("テンソルにはNaNは含まれていません。")
 
 # --- 学習ループ ---
-for round in range(AL_round):
+"""for round in range(AL_round):
     print(f"Round {round+1}/{AL_round}")
     
     # --- CNTGE ---
     D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader = \
-       CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, n_r, n_r)
+        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, k=n_r, n_r=n_r)"""
     
     # --- 敵対的・多様性カリキュラム学習とプロトタイプ分類器学習 ---
-    """
+"""
     for epoch in range(steps_per_epoch):
-        loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                        D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
+        if D_plt_loader == None:
+            loss = train_wo_plt.train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
+                            D_s_loader, D_ut_train_loader, D_lt_loader, optimizer)
+        else:
+            loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
+                            D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
         print(f"Epoch {epoch+1}/{steps_per_epoch}, Loss: {loss:.4f}")
         t += 1
-        w_alpha = w_0 + (1 - max(t, min_step)/AL_round*steps_per_epoch) * alpha
-    """
+        w_alpha = w_0 + (1 - max(t, min_step)/AL_round*steps_per_epoch) * alpha"""
     # --- 検証 ---
     # accuracy = train.validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
     # print(f"Accuracy: {accuracy:.4f}")

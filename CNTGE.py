@@ -21,7 +21,7 @@ Flow:
 """
 # 未実装：勾配の計算とそれ以降
 from sklearn.cluster import KMeans
-from torch.utils.data import Dataset, DataLoader, Subset, ConcatDataset
+from torch.utils.data import Dataset, TensorDataset, DataLoader, Subset, ConcatDataset
 from utils import calculate_transfer_score
 from torch.nn import functional as F
 import torch
@@ -41,11 +41,19 @@ def process_in_batches(model, data, batch_size):
 def Kmeans(D_ut_train, feature_extracter, k):
     # 特徴量を抽出する
     features = torch.stack([D_ut_train[i][0].to(device) for i in range(len(D_ut_train))])
-    features = process_in_batches(feature_extracter, features, batch_size)
+    #features = process_in_batches(feature_extracter, features, batch_size)
     if np.isnan(features).any():
         print("NaN found in features:")
+        print("len D_ut_train", len(D_ut_train))
+        nan_count = 0
+        for feature in features:
+            if np.isnan(feature).any():
+                nan_count += 1
+        print("n_NaN", nan_count)
         print(features)
         #print(features[np.isnan(features).any(axis=1)])
+    else:
+        print("NaNは含まない")
     # K-meansクラスタリング
     kmeans = KMeans(n_clusters=k)
     kmeans.fit(features)
@@ -61,12 +69,18 @@ def clustering(D_ut_train, k, feature_extracter, mode: str):
 
 def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator):
     w_centroids = [calculate_transfer_score(centroid, source_classifier, domain_discriminator).cpu().detach().numpy() for centroid in centroids]
-    # 最大のw_centroidのインデックスを取得
-    max_index = np.argmax(w_centroids)
-    # 最大ではないかつβを超える要素のインデックスを取得
-    above_beta_not_max_indices = [i for i, value in enumerate(w_centroids) if (value > beta and i != max_index)]
+    
+    max_index = None
+    # 転送スコアが
+    # βを超える要素のインデックスを取得
+    above_beta_not_max_indices = [i for i, value in enumerate(w_centroids) if (value > beta)]
     # β以下の要素のインデックスを取得
-    below_beta_indices = [i for i, value in enumerate(w_centroids) if (value <= beta and i != max_index)]
+    below_beta_indices = [i for i, value in enumerate(w_centroids) if (value <= beta)]
+    # 最大かつβを超えるインデックスを取得
+    if above_beta_not_max_indices != []:
+        max_index = np.argmax(w_centroids)
+        above_beta_not_max_indices.remove(max_index)
+    
     
     # 抽出されたデータポイントのインデックスを取得
     max_cluster_indices = [i for i, label in enumerate(cluster_labels) if label == max_index]
@@ -79,19 +93,7 @@ def devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classi
     nontransferrable_dataset = Subset(D_ut_train, below_beta_cluster_indices)
     """
 
-    # 特徴量とラベルのテンソルを使用して新しいデータセットを作成
-    
-    class TensorDataset(Dataset):
-        def __init__(self, features, labels):
-            self.features = features
-            self.labels = labels
-        
-        def __len__(self):
-            return len(self.features)
-        
-        def __getitem__(self, idx):
-            return self.features[idx], self.labels[idx]
-        
+    # 特徴量とラベルのテンソルを使用して新しいデータセットを作成        
     if len(max_cluster_indices) != 0:
         max_w_cluster_features = torch.stack([D_ut_train[i][0] for i in range(len(D_ut_train)) if i in max_cluster_indices])
         max_w_cluster_labels = torch.tensor([D_ut_train[i][1] for i in range(len(D_ut_train)) if i in max_cluster_indices])
@@ -168,7 +170,14 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     centroids, cluster_labels = clustering(D_ut_train, k, feature_extractor, mode="Kmeans")
     max_w_cluster_dataset, max_w_cluster_centroid, transferrable_not_max_w_cluster_dataset, nontransferrable_dataset = devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator)
     
-    D_plt_new = psuedo_labeling(max_w_cluster_dataset, max_w_cluster_centroid, feature_extractor, source_classifier)
+    # print(len(max_w_cluster_dataset))
+    # print(len(transferrable_not_max_w_cluster_dataset))
+    if len(max_w_cluster_dataset) > 0:
+        D_plt_new = psuedo_labeling(max_w_cluster_dataset, max_w_cluster_centroid, feature_extractor, source_classifier)
+    else:
+        D_plt_new_features = torch.empty((0, 224, 224, 3))
+        D_plt_new_labels = torch.empty((0,))
+        D_plt_new = TensorDataset(D_plt_new_features, D_plt_new_labels)
     labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset = AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, n_r)
     
     # ターゲットのラベル付きデータに、ALしたものを追加
@@ -177,11 +186,16 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     D_plt = ConcatDataset([D_plt, D_plt_new])
     # ターゲットの未ラベルデータを、ALまたはPLしなかったものに更新
     D_ut_train = ConcatDataset([transferrable_not_max_w_cluster_dataset, not_labeled_nontransferrable_dataset])
-    print(D_ut_train[0][0].size())
+    print("len D_ut_train", len(D_ut_train))
+    print("len D_lt", len(D_lt))
+    print("len D_plt", len(D_plt))
     # データローダに変換
     D_ut_train_loader = DataLoader(D_ut_train, batch_size=batch_size, shuffle=True)
     D_lt_loader = DataLoader(D_lt, batch_size=batch_size, shuffle=True)
-    D_plt_loader = DataLoader(D_plt, batch_size=batch_size, shuffle=True)
+    if len(D_plt) != 0:
+        D_plt_loader = DataLoader(D_plt, batch_size=batch_size, shuffle=True)
+    else:
+        D_plt_loader = None
     
     print("finish CNTGE")
     

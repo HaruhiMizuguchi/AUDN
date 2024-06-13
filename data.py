@@ -22,7 +22,8 @@ class DomainAdaptationDataset(Dataset):
         self.data = []
         self.transform = transforms.Compose([
             transforms.Resize((224, 224)),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         with open(data_file, 'r') as f:
             for line in f:
@@ -71,15 +72,15 @@ def create_dataset_dataloader(dataset_name, source_domain, target_domain, batch_
 
     # データセットを作成
     D_s = DomainAdaptationDataset(f'data/{dataset_name}/images_and_labels.txt', source_domain, source_private_labels.union(shared_labels))
-    print(len(D_s))
+    print("len D_s", len(D_s))
     D_t = DomainAdaptationDataset(f'data/{dataset_name}/images_and_labels.txt', target_domain, target_private_labels.union(shared_labels))
 
     # データを8:2の割合で訓練データとテストデータに分割
     target_train_size = int(0.8 * len(D_t))
     target_test_size = len(D_t) - target_train_size
     D_ut_train, D_t_test = random_split(D_t, [target_train_size, target_test_size])
-    print(len(D_ut_train))
-    print(len(D_t_test))
+    print("len D_ut_train", len(D_ut_train))
+    print("len D_t_test", len(D_t_test))
 
     # データローダを作成
     D_s_loader = DataLoader(D_s, batch_size=batch_size, shuffle=True)
@@ -97,12 +98,3 @@ def create_dataset_dataloader(dataset_name, source_domain, target_domain, batch_
     check_nan(D_t_test_loader)
     """
     return D_s, D_ut_train, D_t_test, D_s_loader, D_ut_train_loader, D_t_test_loader
-
-"""# データローダの動作確認
-for images, labels in source_loader:
-    print(images.size(), labels.size())
-    break
-
-for images, labels in target_loader:
-    print(images.size(), labels.size())
-    break"""

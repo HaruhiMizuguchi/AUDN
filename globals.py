@@ -39,4 +39,6 @@ AL_round = config['data']['train']['AL_round']
 w_alpha = w_0
 t = 0
 
+eps = 1e-6
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

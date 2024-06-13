@@ -53,13 +53,24 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         s_domain_preds = domain_discriminator(s_features)
         ut_domain_preds = domain_discriminator(ut_features)
         
+        print(f"s_domain_preds: {s_domain_preds}")
+        print(f"ut_domain_preds: {ut_domain_preds}")
+        
         # --- 転送スコアと重みの計算 ---
         ut_transfer_scores = torch.stack([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
         
         # --- 敵対的カリキュラム学習 L_adv ---)
-        adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
-                                        torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds))
+        #adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
+        #                                torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds))
+        s_domain_loss = source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))
+        ut_domain_loss = (ut_transfer_scores >= w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))
+        print(f"s_domain_loss: {s_domain_loss}")
+        print(s_domain_loss.size())
+        print(f"ut_domain_loss: {ut_domain_loss}")
+        print(ut_domain_loss.size())
+        adversarial_curriculum_loss = torch.mean(s_domain_loss) + torch.mean(ut_domain_loss)
+        
                                         
         # --- 多様性カリキュラム学習 L_div ---
         diverse_curriculum_loss = - torch.mean((ut_transfer_scores < w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
@@ -67,9 +78,12 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         
         # --- 全体の損失 ---
         loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss
+        # loss = source_classification_loss + diverse_curriculum_loss
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        
+        total_loss += loss.item()
         
     return total_loss / len(D_s_loader)

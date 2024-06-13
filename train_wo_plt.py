@@ -11,10 +11,10 @@ from CNTGE import run_CNTGE
 from utils import *
 from globals import *
 
-def train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer):
+def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
+                D_s_loader, D_ut_train_loader, D_lt_loader, optimizer):
     """
-    1エポック分の学習を行う関数
+    疑似ラベル付きデータセットが空の場合に、1エポック分の学習を行う関数
 
     Args:
         feature_extractor (nn.Module): 特徴抽出器
@@ -24,7 +24,6 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         D_s_loader (DataLoader): ソースドメインのデータローダー
         D_ut_train_loader (DataLoader): ターゲットドメインのラベルなしデータのデータローダー
         D_lt_loader (DataLoader): ターゲットドメインのラベルつきデータのデータローダー
-        D_plt_loader (DataLoader): ターゲットドメインの疑似ラベルつきデータのデータローダー
         optimizer (optim.Optimizer): 最適化アルゴリズム
         alpha (float): 勾配反転層の重み係数
         w_0 (float): 転送スコアの閾値
@@ -39,16 +38,14 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
     
     total_loss = 0
     
-    for (s_data, s_label), (ut_data, _), (lt_data, lt_label), (plt_data, plt_label) in tqdm(zip(D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader)):
+    for (s_data, s_label), (ut_data, _), (lt_data, lt_label) in tqdm(zip(D_s_loader, D_ut_train_loader, D_lt_loader)):
         s_data, s_label = s_data.to(device), s_label.to(device)
         ut_data = ut_data.to(device)
         lt_data, lt_label = lt_data.to(device), lt_label.to(device)
-        plt_data, plt_label = plt_data.to(device), plt_label.to(device)
         # 特徴抽出
         s_features = feature_extractor(s_data)
         ut_features = feature_extractor(ut_data)
         lt_features = feature_extractor(lt_data)
-        plt_features = feature_extractor(plt_data)
         
         # --- ソースラベル分類器の学習 L_C ---
         s_preds = source_classifier(s_features)
@@ -88,10 +85,8 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
                                     
         # --- プロトタイプ分類器の学習 ---
         # --- クロスエントロピー L_p ---
-        prototype_plt_preds = prototype_classifier(plt_features)
         prototype_lt_preds = prototype_classifier(lt_features)
-        protopype_classification_loss = F.cross_entropy(prototype_plt_preds, plt_label) + \
-            F.cross_entropy(prototype_lt_preds, lt_label)
+        protopype_classification_loss = F.cross_entropy(prototype_lt_preds, lt_label)
         
         # --- 自己教師ありクラスタリング損失 ---
         prototypes = prototype_classifier.prototypes.data
@@ -115,35 +110,3 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         optimizer.step()
         
     return total_loss / len(D_s_loader)
-
-def validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, target_test_loader, w_0):
-    """
-    検証データでモデルの性能を評価する関数
-
-    Args:
-        feature_extractor (nn.Module): 特徴抽出器
-        source_classifier (nn.Module): ソースラベル分類器
-        prototype_classifier (nn.Module): プロトタイプ分類器
-        target_loader (DataLoader): ターゲットドメインのデータローダー
-        w_0 (float): 転送スコアの閾値
-
-    Returns:
-        float: 平均クラス精度
-    """
-
-    feature_extractor.eval()
-    source_classifier.eval()
-    prototype_classifier.eval()
-
-    correct = 0
-    total = 0
-
-    with torch.no_grad():
-        for data, label in target_test_loader:
-            data, label = data.to(device), label.to(device)
-            features = feature_extractor(data)
-            preds = predict(features, source_classifier, domain_discriminator, prototype_classifier, w_0)
-            correct += (preds == label).sum().item()
-            total += label.size(0)
-
-    return correct / total
