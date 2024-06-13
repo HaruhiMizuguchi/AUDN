@@ -186,9 +186,9 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     D_plt = ConcatDataset([D_plt, D_plt_new])
     # ターゲットの未ラベルデータを、ALまたはPLしなかったものに更新
     D_ut_train = ConcatDataset([transferrable_not_max_w_cluster_dataset, not_labeled_nontransferrable_dataset])
-    print("len D_ut_train", len(D_ut_train))
-    print("len D_lt", len(D_lt))
-    print("len D_plt", len(D_plt))
+    #print("len D_ut_train", len(D_ut_train))
+    #print("len D_lt", len(D_lt))
+    #print("len D_plt", len(D_plt))
     # データローダに変換
     D_ut_train_loader = DataLoader(D_ut_train, batch_size=batch_size, shuffle=True)
     D_lt_loader = DataLoader(D_lt, batch_size=batch_size, shuffle=True)

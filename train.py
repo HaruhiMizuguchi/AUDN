@@ -40,6 +40,11 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
     total_loss = 0
     
     for (s_data, s_label), (ut_data, _), (lt_data, lt_label), (plt_data, plt_label) in tqdm(zip(D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader)):
+        
+        t += 1
+        if t <= total_ite:
+            w_alpha = w_0 - (1 - t/total_ite) * alpha
+        
         s_data, s_label = s_data.to(device), s_label.to(device)
         ut_data = ut_data.to(device)
         lt_data, lt_label = lt_data.to(device), lt_label.to(device)

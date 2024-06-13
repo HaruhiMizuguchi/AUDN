@@ -36,7 +36,6 @@ lr = config['data']['train']['lr']
 weight_decay = config['data']['train']['weight_decay']
 momentum = config['data']['train']['momentum']
 AL_round = config['data']['train']['AL_round']
-w_alpha = w_0
 t = 0
 
 eps = 1e-6

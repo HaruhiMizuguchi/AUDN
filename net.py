@@ -28,11 +28,7 @@ class feature_extractor(nn.Module):
         # x = self.resnet(x)
         for layer in self.resnet:
             x = layer(x)
-            if torch.isnan(x).any() or torch.isinf(x).any():
-                print(f"NaN or Inf detected after layer {layer}")
-                return x
         x = x.view(x.size(0), -1)
-        print(f"Output shape: {x.shape}")
         return x
 
 class source_classifier(nn.Module):
@@ -48,7 +44,13 @@ class source_classifier(nn.Module):
         )
 
     def forward(self, x):
-        return self.classifier(x)
+        logits = self.classifier(x)
+        if logits.dim() == 1:
+            # Single data point (1D tensor)
+            return torch.softmax(logits, dim=0)
+        else:
+            # Batch of data points (2D tensor)
+            return torch.softmax(logits, dim=1)
 
 class domain_discriminator(nn.Module):
     """
