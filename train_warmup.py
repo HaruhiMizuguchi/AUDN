@@ -31,6 +31,7 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
     """
     
     global t, w_alpha, total_ite
+    print("total_ite:",total_ite)
     
     feature_extractor.train()
     source_classifier.train()
@@ -43,8 +44,7 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         
         t += 1
         if t <= total_ite:
-            w_alpha = w_0 - (1 - t/total_ite) * alpha
-            
+            w_alpha = w_0 - ((1 - t/total_ite) * alpha)
         
         # 特徴抽出
         s_features = feature_extractor(s_data)

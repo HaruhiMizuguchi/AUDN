@@ -5,6 +5,11 @@ from data import create_dataset_dataloader
 from globals import *
 from net import feature_extractor, source_classifier, domain_discriminator, prototype_classifier
 
+global w_alpha, t, total_ite
+w_alpha = 0
+t = 0
+total_ite = 0
+
 # モデルのインスタンス化
 feature_extractor = feature_extractor().to(device)
 source_classifier = source_classifier(n_source_classes).to(device)
@@ -27,8 +32,7 @@ D_plt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # 疑似ラベル�
 
 global total_ite
 total_ite = len(D_s_loader) * (AL_round + 1)
-print(t)
-
+print("total_ite:",total_ite)
 # 学習
 # --- Warm Up ---
 loss = train_warmup.train_warmup_epoch(feature_extractor, source_classifier, domain_discriminator,
