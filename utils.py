@@ -12,10 +12,7 @@ def get_source_weights(ut_features, s_label, source_classifier, domain_discrimin
         print("NaN found in ws in get source weights")
         
     # Debugging for w_alpha
-    valid_ws = ws.reshape(-1, 1).flatten() >= w_alpha
-    #print(f"ws: {ws}")
-    print(f"w_alpha: {w_alpha}")
-    #print(f"valid_ws: {valid_ws}")
+    valid_ws = ws.reshape(-1, 1).flatten() >= config.w_alpha
     print(f"sum(valid_ws): {torch.sum(valid_ws)}")
     
     if torch.sum(valid_ws) == 0:

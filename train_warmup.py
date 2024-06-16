@@ -30,8 +30,9 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         float: 1エポック分の平均損失
     """
     
-    global t, w_alpha, total_ite
-    print("total_ite:",total_ite)
+    print("total_ite:",config.total_ite)
+    print("t:",config.t)
+    print("w_alpha:",config.w_alpha)
     
     feature_extractor.train()
     source_classifier.train()
@@ -42,9 +43,9 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
     for (s_data, s_label), (ut_data, _) in tqdm(zip(D_s_loader, D_ut_train_loader)):
         s_data, s_label, ut_data = s_data.to(device), s_label.to(device), ut_data.to(device)
         
-        t += 1
-        if t <= total_ite:
-            w_alpha = w_0 - ((1 - t/total_ite) * alpha)
+        config.t += 1
+        if config.t <= config.total_ite:
+            config.w_alpha = w_0 - ((1 - config.t/config.total_ite) * alpha)
         
         # 特徴抽出
         s_features = feature_extractor(s_data)
@@ -72,7 +73,7 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         #adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
         #                                torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds))
         s_domain_loss = source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))
-        ut_domain_loss = (ut_transfer_scores >= w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))
+        ut_domain_loss = (ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))
         #print(f"s_domain_loss: {s_domain_loss}")
         #print(s_domain_loss.size())
         #print(f"ut_domain_loss: {ut_domain_loss}")
@@ -81,7 +82,7 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         
                                         
         # --- 多様性カリキュラム学習 L_div ---
-        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
+        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
                                                                                         torch.log(F.softmax(ut_preds, dim=1)), dim=1)))
         
         # --- 全体の損失 ---

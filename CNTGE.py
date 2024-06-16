@@ -41,19 +41,7 @@ def process_in_batches(model, data, batch_size):
 def Kmeans(D_ut_train, feature_extracter, k):
     # 特徴量を抽出する
     features = torch.stack([D_ut_train[i][0].to(device) for i in range(len(D_ut_train))])
-    #features = process_in_batches(feature_extracter, features, batch_size)
-    if np.isnan(features).any():
-        print("NaN found in features:")
-        print("len D_ut_train", len(D_ut_train))
-        nan_count = 0
-        for feature in features:
-            if np.isnan(feature).any():
-                nan_count += 1
-        print("n_NaN", nan_count)
-        print(features)
-        #print(features[np.isnan(features).any(axis=1)])
-    else:
-        print("NaNは含まない")
+    features = process_in_batches(feature_extracter, features, batch_size)
     # K-meansクラスタリング
     kmeans = KMeans(n_clusters=k)
     kmeans.fit(features)

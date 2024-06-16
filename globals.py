@@ -37,6 +37,19 @@ weight_decay = config['data']['train']['weight_decay']
 momentum = config['data']['train']['momentum']
 AL_round = config['data']['train']['AL_round']
 
+class Config:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Config, cls).__new__(cls)
+            cls._instance.total_ite = 0
+            cls._instance.w_alpha = 0
+            cls._instance.t = 0
+        return cls._instance
+
+config = Config()
+
 eps = 1e-6
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

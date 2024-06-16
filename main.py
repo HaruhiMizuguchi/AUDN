@@ -5,11 +5,6 @@ from data import create_dataset_dataloader
 from globals import *
 from net import feature_extractor, source_classifier, domain_discriminator, prototype_classifier
 
-global w_alpha, t, total_ite
-w_alpha = 0
-t = 0
-total_ite = 0
-
 # モデルのインスタンス化
 feature_extractor = feature_extractor().to(device)
 source_classifier = source_classifier(n_source_classes).to(device)
@@ -30,9 +25,8 @@ D_s, D_ut_train, D_t_test, D_s_loader, D_ut_train_loader, D_t_test_loader = \
 D_lt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # ラベル付きターゲットデータ (初期状態は空)
 D_plt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # 疑似ラベル付きターゲットデータ (初期状態は空)
 
-global total_ite
-total_ite = len(D_s_loader) * (AL_round + 1)
-print("total_ite:",total_ite)
+config.total_ite = len(D_s_loader) * (AL_round + 1)
+print("total_ite:",config.total_ite)
 # 学習
 # --- Warm Up ---
 loss = train_warmup.train_warmup_epoch(feature_extractor, source_classifier, domain_discriminator,
@@ -47,23 +41,21 @@ else:
     print("テンソルにはNaNは含まれていません。")
 
 # --- 学習ループ ---
-"""for round in range(AL_round):
+for round in range(AL_round):
     print(f"Round {round+1}/{AL_round}")
     
     # --- CNTGE ---
     D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader = \
-        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, k=n_r, n_r=n_r)"""
+        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, k=n_r, n_r=n_r)
     
-    # --- 敵対的・多様性カリキュラム学習とプロトタイプ分類器学習 ---
-"""
-    for epoch in range(steps_per_epoch):
-        if D_plt_loader == None:
-            loss = train_wo_plt.train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                            D_s_loader, D_ut_train_loader, D_lt_loader, optimizer)
-        else:
-            loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                            D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
-        print(f"Epoch {epoch+1}/{steps_per_epoch}, Loss: {loss:.4f}")"""
+    # --- 学習 ---
+    if D_plt_loader == None:
+        loss = train_wo_plt.train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
+                        D_s_loader, D_ut_train_loader, D_lt_loader, optimizer)
+    else:
+        loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
+                        D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
+    print(f"Loss: {loss:.4f}")
     # --- 検証 ---
     # accuracy = train.validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
     # print(f"Accuracy: {accuracy:.4f}")

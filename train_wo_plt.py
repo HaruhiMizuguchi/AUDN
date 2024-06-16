@@ -40,11 +40,9 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
     
     for (s_data, s_label), (ut_data, _), (lt_data, lt_label) in tqdm(zip(D_s_loader, D_ut_train_loader, D_lt_loader)):
         
-        global t
-        t += 1
-
-        if t <= total_ite:
-            w_alpha = w_0 - (1 - t/total_ite) * alpha
+        config.t += 1
+        if config.t <= config.total_ite:
+            config.w_alpha = w_0 - (1 - config.t/config.total_ite) * alpha
         
         s_data, s_label = s_data.to(device), s_label.to(device)
         ut_data = ut_data.to(device)
@@ -81,11 +79,11 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
 
         # --- 敵対的カリキュラム学習 L_adv ---
         adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
-                                        torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds)) + \
+                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(ut_domain_preds)) + \
                                         torch.mean(torch.log(lt_common_domain_preds))
                                         
         # --- 多様性カリキュラム学習 L_div ---
-        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
+        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
                                                                                         torch.log(F.softmax(ut_preds, dim=1)), dim=1))) \
                                     - torch.mean(torch.sum(F.softmax(source_classifier(lt_features[private_label_indices]), dim=1) * \
                                         torch.log(F.softmax(source_classifier(lt_features[private_label_indices]), dim=1))))
