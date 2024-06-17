@@ -47,7 +47,7 @@ for round in range(AL_round):
     
     # --- CNTGE ---
     D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader, labels_of_prototypes = \
-        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, k=n_r, n_r=n_r)
+        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, n_source_classes, k=n_r, n_r=n_r)
     
     # --- 学習 ---
     """

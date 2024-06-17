@@ -154,18 +154,18 @@ def AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, 
     return labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset
 
 
-def add_new_prototypes(new_labeled_target, labels_of_prototypes, feature_extractor, prototype_classifier):
+def add_new_prototypes(new_labeled_target, labels_of_prototypes, feature_extractor, prototype_classifier, n_source_classes):
     ####################
     # プロトタイプの追加 #
     ####################
     for i in range(len(new_labeled_target)):
-        if new_labeled_target[i][1] not in labels_of_prototypes:
+        if new_labeled_target[i][1] not in labels_of_prototypes and new_labeled_target[i][1] >= n_source_classes:
             labels_of_prototypes.append(new_labeled_target[i][1])
             prototype_classifier.add_prototype(feature_extractor(new_labeled_target[i][0].unsqueeze(0).to(device)))
     return labels_of_prototypes
 
 
-def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, k, n_r):
+def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, n_source_classes, k, n_r):
     
     print("start CNTGE")
     centroids, cluster_labels = clustering(D_ut_train, k, feature_extractor, mode="Kmeans")
@@ -182,7 +182,7 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     # Active Learning
     labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset = AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, n_r)
     
-    labels_of_prototypes = add_new_prototypes(labeled_nontransferrable_dataset, labels_of_prototypes, feature_extractor, prototype_classifier)
+    labels_of_prototypes = add_new_prototypes(labeled_nontransferrable_dataset, labels_of_prototypes, feature_extractor, prototype_classifier, n_source_classes)
     
     # ターゲットのラベル付きデータに、ALしたものを追加
     D_lt = ConcatDataset([D_lt, labeled_nontransferrable_dataset])
