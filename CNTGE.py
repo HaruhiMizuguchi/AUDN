@@ -25,6 +25,7 @@ from torch.utils.data import Dataset, TensorDataset, DataLoader, Subset, ConcatD
 from utils import calculate_transfer_score
 from torch.nn import functional as F
 import torch
+import net
 import numpy as np
 from globals import *
 
@@ -152,32 +153,43 @@ def AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, 
     
     return labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset
 
-def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, labels_of_prototypes, k, n_r):
+
+def add_new_prototypes(new_labeled_target, labels_of_prototypes, feature_extractor, prototype_classifier):
+    ####################
+    # プロトタイプの追加 #
+    ####################
+    for i in range(len(new_labeled_target)):
+        if new_labeled_target[i][1] not in labels_of_prototypes:
+            labels_of_prototypes.append(new_labeled_target[i][1])
+            prototype_classifier.add_prototype(feature_extractor(new_labeled_target[i][0].unsqueeze(0).to(device)))
+    return labels_of_prototypes
+
+
+def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, k, n_r):
     
     print("start CNTGE")
     centroids, cluster_labels = clustering(D_ut_train, k, feature_extractor, mode="Kmeans")
     max_w_cluster_dataset, max_w_cluster_centroid, transferrable_not_max_w_cluster_dataset, nontransferrable_dataset = devide_by_transferrable(D_ut_train, centroids, cluster_labels, source_classifier, domain_discriminator)
     
-    # print(len(max_w_cluster_dataset))
-    # print(len(transferrable_not_max_w_cluster_dataset))
+    # Psuedo-labeling
     if len(max_w_cluster_dataset) > 0:
         D_plt_new = psuedo_labeling(max_w_cluster_dataset, max_w_cluster_centroid, feature_extractor, source_classifier)
     else:
         D_plt_new_features = torch.empty((0, 224, 224, 3))
         D_plt_new_labels = torch.empty((0,))
         D_plt_new = TensorDataset(D_plt_new_features, D_plt_new_labels)
+    
+    # Active Learning
     labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset = AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, n_r)
+    
+    labels_of_prototypes = add_new_prototypes(labeled_nontransferrable_dataset, labels_of_prototypes, feature_extractor, prototype_classifier)
     
     # ターゲットのラベル付きデータに、ALしたものを追加
     D_lt = ConcatDataset([D_lt, labeled_nontransferrable_dataset])
     # 疑似ラベル付きデータに、PLしたものを追加
     D_plt = ConcatDataset([D_plt, D_plt_new])
-    new_plt_labels = list(set([D_plt[i][1] for i in range(len(D_plt))]))
     # ターゲットの未ラベルデータを、ALまたはPLしなかったものに更新
     D_ut_train = ConcatDataset([transferrable_not_max_w_cluster_dataset, not_labeled_nontransferrable_dataset])
-    #print("len D_ut_train", len(D_ut_train))
-    #print("len D_lt", len(D_lt))
-    #print("len D_plt", len(D_plt))
     # データローダに変換
     D_ut_train_loader = DataLoader(D_ut_train, batch_size=batch_size, shuffle=True)
     D_lt_loader = DataLoader(D_lt, batch_size=batch_size, shuffle=True)

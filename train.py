@@ -95,7 +95,7 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         # --- クロスエントロピー L_p ---
         prototype_plt_preds = prototype_classifier(plt_features)
         prototype_lt_preds = prototype_classifier(lt_features)
-        protopype_classification_loss = F.cross_entropy(prototype_plt_preds, plt_label) + \
+        prototype_classification_loss = F.cross_entropy(prototype_plt_preds, plt_label) + \
             F.cross_entropy(prototype_lt_preds, lt_label)
         
         # --- 自己教師ありクラスタリング損失 ---
@@ -113,7 +113,7 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         
         # --- 全体の損失 ---
         loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss + \
-            protopype_classification_loss + selfsupervised_clustering_loss
+            protopyte_classification_loss + selfsupervised_clustering_loss
 
         optimizer.zero_grad()
         loss.backward()

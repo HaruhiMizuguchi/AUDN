@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet50, ResNet50_Weights
+from globals import *
 
 class GradientReverseLayer(nn.Module):
     """
@@ -96,4 +97,5 @@ class prototype_classifier(nn.Module):
         """
         新しいプロトタイプを追加するメソッド
         """
-        self.prototypes = nn.Parameter(torch.cat([self.prototypes, new_prototype.unsqueeze(0)], dim=0))
+        new_prototype = F.relu(self.bottleneck(new_prototype))
+        self.prototypes = nn.Parameter(torch.cat([self.prototypes, new_prototype], dim=0))
