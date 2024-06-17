@@ -152,7 +152,7 @@ def AL_labeling(nontransferrable_dataset, feature_extractor, source_classifier, 
     
     return labeled_nontransferrable_dataset, not_labeled_nontransferrable_dataset
 
-def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, k, n_r):
+def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, labels_of_prototypes, k, n_r):
     
     print("start CNTGE")
     centroids, cluster_labels = clustering(D_ut_train, k, feature_extractor, mode="Kmeans")
@@ -172,6 +172,7 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     D_lt = ConcatDataset([D_lt, labeled_nontransferrable_dataset])
     # 疑似ラベル付きデータに、PLしたものを追加
     D_plt = ConcatDataset([D_plt, D_plt_new])
+    new_plt_labels = list(set([D_plt[i][1] for i in range(len(D_plt))]))
     # ターゲットの未ラベルデータを、ALまたはPLしなかったものに更新
     D_ut_train = ConcatDataset([transferrable_not_max_w_cluster_dataset, not_labeled_nontransferrable_dataset])
     #print("len D_ut_train", len(D_ut_train))
@@ -187,4 +188,4 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     
     print("finish CNTGE")
     
-    return D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader
+    return D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader, labels_of_prototypes

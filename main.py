@@ -24,6 +24,7 @@ D_s, D_ut_train, D_t_test, D_s_loader, D_ut_train_loader, D_t_test_loader = \
     create_dataset_dataloader(dataset_name, source_domain, target_domain, batch_size, n_source_private, n_share, n_target_private)
 D_lt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # ラベル付きターゲットデータ (初期状態は空)
 D_plt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # 疑似ラベル付きターゲットデータ (初期状態は空)
+labels_of_prototypes = []
 
 config.total_ite = len(D_s_loader) * (AL_round + 1)
 print("total_ite:",config.total_ite)
@@ -45,8 +46,8 @@ for round in range(AL_round):
     print(f"Round {round+1}/{AL_round}")
     
     # --- CNTGE ---
-    D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader = \
-        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, k=n_r, n_r=n_r)
+    D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader, labels_of_prototypes = \
+        CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, labels_of_prototypes, k=n_r, n_r=n_r)
     
     # --- 学習 ---
     if D_plt_loader == None:
