@@ -47,6 +47,7 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         s_data, s_label = s_data.to(device), s_label.to(device)
         ut_data = ut_data.to(device)
         lt_data, lt_label = lt_data.to(device), lt_label.to(device)
+        
         # 特徴抽出
         s_features = feature_extractor(s_data)
         ut_features = feature_extractor(ut_data)
@@ -74,7 +75,7 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         lt_common_domain_preds = domain_discriminator(lt_features[common_label_indices])
         
         # --- 転送スコアと重みの計算 ---
-        ut_transfer_scores = torch.tensor(np.array([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator).detach().numpy() for ut_feature in ut_features]))
+        ut_transfer_scores = torch.stack([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
 
         # --- 敵対的カリキュラム学習 L_adv ---

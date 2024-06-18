@@ -25,6 +25,7 @@ n_source_private = config['data']['dataset']['n_source_private']
 n_share = config['data']['dataset']['n_share']
 n_target_private = config['data']['dataset']['n_target_private']
 n_source_classes = n_source_private + n_share
+n_total_classes = n_source_classes + n_target_private
 n_r = config['data']['dataset']['n_r']
 
 # パラメータを取得

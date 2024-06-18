@@ -159,9 +159,10 @@ def add_new_prototypes(new_labeled_target, labels_of_prototypes, feature_extract
     # プロトタイプの追加 #
     ####################
     for i in range(len(new_labeled_target)):
-        if new_labeled_target[i][1] not in labels_of_prototypes and new_labeled_target[i][1] >= n_source_classes:
+        if new_labeled_target[i][1] not in labels_of_prototypes:
+            print("added new prototype, label = ", new_labeled_target[i][1])
             labels_of_prototypes.append(new_labeled_target[i][1])
-            prototype_classifier.add_prototype(feature_extractor(new_labeled_target[i][0].unsqueeze(0).to(device)))
+            prototype_classifier.add_prototype(feature_extractor(new_labeled_target[i][0].unsqueeze(0).to(device)), new_labeled_target[i][1])
     return labels_of_prototypes
 
 
@@ -174,6 +175,7 @@ def run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, dom
     # Psuedo-labeling
     if len(max_w_cluster_dataset) > 0:
         D_plt_new = psuedo_labeling(max_w_cluster_dataset, max_w_cluster_centroid, feature_extractor, source_classifier)
+        labels_of_prototypes = add_new_prototypes(D_plt_new, labels_of_prototypes, feature_extractor, prototype_classifier, n_source_classes)
     else:
         D_plt_new_features = torch.empty((0, 224, 224, 3))
         D_plt_new_labels = torch.empty((0,))

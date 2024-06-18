@@ -62,9 +62,6 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         s_domain_preds = domain_discriminator(s_features)
         ut_domain_preds = domain_discriminator(ut_features)
         
-        #print(f"s_domain_preds: {s_domain_preds}")
-        #print(f"ut_domain_preds: {ut_domain_preds}")
-        
         # --- 転送スコアと重みの計算 ---
         ut_transfer_scores = torch.stack([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
@@ -74,10 +71,6 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         #                                torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds))
         s_domain_loss = source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))
         ut_domain_loss = (ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))
-        #print(f"s_domain_loss: {s_domain_loss}")
-        #print(s_domain_loss.size())
-        #print(f"ut_domain_loss: {ut_domain_loss}")
-        #print(ut_domain_loss.size())
         adversarial_curriculum_loss = torch.mean(s_domain_loss) + torch.mean(ut_domain_loss)
         
                                         

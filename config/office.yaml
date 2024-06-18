@@ -11,11 +11,10 @@ data:
     n_r: 10
   
   dataloader:
-    batch_size: 32
+    batch_size: 16
 
   model:
-    base_model: resnet50 # choices=['resnet50']
-    pretrained_model: # /path/to/pretrained/model
+    base_model: resnet50 # choices=['resnet50',]
 
   train:
     lr: 0.001
@@ -29,12 +28,7 @@ data:
 
   test:
     test_interval: 500
-    test_only: false
-    resume_file: '' # model to test
     w_0: -0.5
-
-  misc:
-    gpys: 1 # how many GPUs to be used, 0 indicates CPU only
 
   log:
     root_dir: log

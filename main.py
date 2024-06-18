@@ -50,7 +50,7 @@ for round in range(AL_round):
         CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, n_source_classes, k=n_r, n_r=n_r)
     
     # --- 学習 ---
-    """
+    
     if D_plt_loader == None:
         loss = train_wo_plt.train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
                         D_s_loader, D_ut_train_loader, D_lt_loader, optimizer)
@@ -58,7 +58,7 @@ for round in range(AL_round):
         loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
                         D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
     print(f"Loss: {loss:.4f}")
-    """
+    
     # --- 検証 ---
     # accuracy = train.validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
     # print(f"Accuracy: {accuracy:.4f}")

@@ -77,6 +77,7 @@ class domain_discriminator(nn.Module):
     def forward(self, x):
         return self.discriminator(x)
 
+
 class prototype_classifier(nn.Module):
     """
     プロトタイプ分類器 (Gp) を実装するクラス
@@ -84,18 +85,34 @@ class prototype_classifier(nn.Module):
     def __init__(self, tau=0.05):
         super().__init__()
         self.bottleneck = nn.Linear(2048, 256)  # ボトルネック層
-        self.prototypes = nn.Parameter(torch.Tensor(0, 256))  # プロトタイプ (初期状態ではユニット数0)
+        self.prototypes = nn.ParameterList()  # 動的にプロトタイプを追加するためのリスト
+        self.prototype_labels = []  # プロトタイプに対応するクラスラベル
         self.tau = tau  # 温度パラメータτ
 
-    def forward(self, x):
+    def forward(self, x, inference_mode=False):
         x = F.relu(self.bottleneck(x))
-        similarities = F.cosine_similarity(x.unsqueeze(1), self.prototypes, dim=2)  # コサイン類似度計算
-        outputs = F.softmax(similarities / self.tau, dim=1)  # softmax
-        return outputs
+        if inference_mode:
+            # 推論モードではn_source_classes以上のラベルを持つプロトタイプのみ使用
+            active_prototypes = torch.stack([proto for proto, label in zip(self.prototypes, self.prototype_labels) if label >= n_source_classes])
+            active_labels = [label for label in self.prototype_labels if label >= n_source_classes]
+        else:
+            active_prototypes = torch.stack(self.prototypes)
+            active_labels = self.prototype_labels
 
-    def add_prototype(self, new_prototype):
+        similarities = F.cosine_similarity(x.unsqueeze(1), active_prototypes.unsqueeze(0), dim=2)  # コサイン類似度計算
+        outputs = F.softmax(similarities / self.tau, dim=1)
+        
+        # 全てのクラス数分のベクトルを出力（無効なクラスには0を設定）
+        full_outputs = torch.zeros(x.size(0), self.n_total_classes, device=x.device)
+        for i, label in enumerate(active_labels):
+            full_outputs[:, label] = outputs[:, i]
+
+        return full_outputs
+
+    def add_prototype(self, new_prototype, class_index):
         """
         新しいプロトタイプを追加するメソッド
         """
-        new_prototype = F.relu(self.bottleneck(new_prototype))
-        self.prototypes = nn.Parameter(torch.cat([self.prototypes, new_prototype], dim=0))
+        new_prototype = F.relu(self.bottleneck(new_prototype.unsqueeze(0))).squeeze(0)
+        self.prototypes.append(nn.Parameter(new_prototype))
+        self.prototype_labels.append(class_index)
