@@ -159,7 +159,8 @@ def add_new_prototypes(new_labeled_target, labels_of_prototypes, feature_extract
     # プロトタイプの追加 #
     ####################
     for i in range(len(new_labeled_target)):
-        if new_labeled_target[i][1] not in labels_of_prototypes:
+        label = new_labeled_target[i][1].item()
+        if label not in labels_of_prototypes:
             print("added new prototype, label = ", new_labeled_target[i][1])
             labels_of_prototypes.append(new_labeled_target[i][1])
             prototype_classifier.add_prototype(feature_extractor(new_labeled_target[i][0].unsqueeze(0).to(device)), new_labeled_target[i][1])

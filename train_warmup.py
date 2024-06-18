@@ -75,8 +75,7 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         
                                         
         # --- 多様性カリキュラム学習 L_div ---
-        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
-                                                                                        torch.log(F.softmax(ut_preds, dim=1)), dim=1)))
+        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(ut_preds), dim=1)))
         
         # --- 全体の損失 ---
         loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss

@@ -81,26 +81,24 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
 
         # --- 敵対的カリキュラム学習 L_adv ---
-        adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
-                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(ut_domain_preds)) + \
-                                        torch.mean(torch.log(lt_common_domain_preds))
+        adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
+                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))) + \
+                                        torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)))
                                         
         # --- 多様性カリキュラム学習 L_div ---
-        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(F.softmax(ut_preds, dim=1) *
-                                                                                        torch.log(F.softmax(ut_preds, dim=1)), dim=1))) \
-                                    - torch.mean(torch.sum(F.softmax(source_classifier(lt_features[private_label_indices]), dim=1) * \
-                                        torch.log(F.softmax(source_classifier(lt_features[private_label_indices]), dim=1))))
+        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(ut_preds), dim=1))) \
+                                    - torch.mean(torch.sum(source_classifier(lt_features[private_label_indices]) * \
+                                        torch.log(source_classifier(lt_features[private_label_indices]))))
                                     
         # --- プロトタイプ分類器の学習 ---
         # --- クロスエントロピー L_p ---
         prototype_plt_preds = prototype_classifier(plt_features)
         prototype_lt_preds = prototype_classifier(lt_features)
-        prototype_classification_loss = F.cross_entropy(prototype_plt_preds, plt_label) + \
-            F.cross_entropy(prototype_lt_preds, lt_label)
+        prototype_classification_loss = F.cross_entropy(prototype_plt_preds, plt_label) + F.cross_entropy(prototype_lt_preds, lt_label)
         
         # --- 自己教師ありクラスタリング損失 ---
-        prototypes = prototype_classifier.prototypes.data
-        M = torch.cat([lt_features, prototypes], dim=0)  # lt_features と prototypes を結合
+        prototypes = prototype_classifier.get_prototypes()
+        M = torch.cat((lt_features, prototypes), dim=0)  # lt_features と prototypes を結合
 
         # ドット積を計算
         similarities = torch.mm(ut_features, M.T) / tau

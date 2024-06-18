@@ -96,14 +96,15 @@ class prototype_classifier(nn.Module):
             active_prototypes = torch.stack([proto for proto, label in zip(self.prototypes, self.prototype_labels) if label >= n_source_classes])
             active_labels = [label for label in self.prototype_labels if label >= n_source_classes]
         else:
-            active_prototypes = torch.stack(self.prototypes)
+            active_prototypes = torch.stack(list(self.prototypes))
             active_labels = self.prototype_labels
 
+        active_prototypes = F.relu(self.bottleneck(active_prototypes.squeeze(1)))
         similarities = F.cosine_similarity(x.unsqueeze(1), active_prototypes.unsqueeze(0), dim=2)  # コサイン類似度計算
         outputs = F.softmax(similarities / self.tau, dim=1)
         
         # 全てのクラス数分のベクトルを出力（無効なクラスには0を設定）
-        full_outputs = torch.zeros(x.size(0), self.n_total_classes, device=x.device)
+        full_outputs = torch.zeros(x.size(0), n_total_classes, device=x.device)
         for i, label in enumerate(active_labels):
             full_outputs[:, label] = outputs[:, i]
 
@@ -113,6 +114,14 @@ class prototype_classifier(nn.Module):
         """
         新しいプロトタイプを追加するメソッド
         """
-        new_prototype = F.relu(self.bottleneck(new_prototype.unsqueeze(0))).squeeze(0)
+        # new_prototype = F.relu(self.bottleneck(new_prototype.unsqueeze(0))).squeeze(0)
         self.prototypes.append(nn.Parameter(new_prototype))
         self.prototype_labels.append(class_index)
+        
+    def get_prototypes(self):
+        """
+        プロトタイプを取得するメソッド
+        """
+        print("proto size",self.prototypes[0].size())
+        prototypes = torch.stack([proto.detach().squeeze(0) for proto in self.prototypes])
+        return prototypes
