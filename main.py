@@ -2,6 +2,7 @@ import torch.optim as optim
 import CNTGE, train, train_wo_plt, train_warmup
 from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
 from data import create_dataset_dataloader
+from utils import validate
 from globals import *
 from net import feature_extractor, source_classifier, domain_discriminator, prototype_classifier
 
@@ -26,20 +27,12 @@ D_lt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # ラベル付き�
 D_plt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # 疑似ラベル付きターゲットデータ (初期状態は空)
 labels_of_prototypes = []
 
-config.total_ite = len(D_s_loader) * (AL_round + 1)
+config.total_ite = batch_size * (AL_round + 1)
 print("total_ite:",config.total_ite)
 # 学習
 # --- Warm Up ---
 loss = train_warmup.train_warmup_epoch(feature_extractor, source_classifier, domain_discriminator,
                 D_s_loader, D_ut_train_loader, optimizer)
-
-random_tensor = torch.randn(3, 224, 224).unsqueeze(0).to(device)
-extracted_tensor = feature_extractor(random_tensor)
-contains_nan = torch.isnan(extracted_tensor).any().item()
-if contains_nan:
-    print("テンソルにはNaNが含まれています。")
-else:
-    print("テンソルにはNaNは含まれていません。")
 
 # --- 学習ループ ---
 for round in range(AL_round):
@@ -60,5 +53,6 @@ for round in range(AL_round):
     print(f"Loss: {loss:.4f}")
     
     # --- 検証 ---
-    # accuracy = train.validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
-    # print(f"Accuracy: {accuracy:.4f}")
+    accuracy = validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
+    print(f"Accuracy: {accuracy:.4f}")
+print(len(D_t_test_loader))

@@ -134,7 +134,7 @@ def calc_gradient(nontransferrable_dataset, feature_extractor, source_classifier
 
 def psuedo_labeling(max_w_cluster_dataset, centroid, feature_extractor, source_classifier):
     plt_features = torch.stack([max_w_cluster_dataset[i][0] for i in range(len(max_w_cluster_dataset))])
-    Y_plt = source_classifier(centroid)
+    Y_plt = torch.argmax(source_classifier(centroid))
     Y_plt = torch.stack([Y_plt for _ in range(len(plt_features))])
     D_plt_new = torch.utils.data.TensorDataset(plt_features, Y_plt)
     return D_plt_new
@@ -161,7 +161,7 @@ def add_new_prototypes(new_labeled_target, labels_of_prototypes, feature_extract
     for i in range(len(new_labeled_target)):
         label = new_labeled_target[i][1].item()
         if label not in labels_of_prototypes:
-            print("added new prototype, label = ", new_labeled_target[i][1])
+            # print("added new prototype, label = ", new_labeled_target[i][1])
             labels_of_prototypes.append(new_labeled_target[i][1])
             prototype_classifier.add_prototype(feature_extractor(new_labeled_target[i][0].unsqueeze(0).to(device)), new_labeled_target[i][1])
     return labels_of_prototypes

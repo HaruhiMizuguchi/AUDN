@@ -79,10 +79,14 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
 
         # --- 敵対的カリキュラム学習 L_adv ---
-        adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
-                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))) + \
-                                        torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)))
-                                        
+        if len(lt_common_domain_preds) == 0:
+            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
+                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps)))
+        else:
+            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
+                                            torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))) + \
+                                            torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)))
+        
         # --- 多様性カリキュラム学習 L_div ---
         diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(torch.clamp(ut_preds, min=eps)), dim=1))) \
                                     - torch.mean(torch.sum(source_classifier(lt_features[private_label_indices]) * \
@@ -95,8 +99,6 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         
         # --- 自己教師ありクラスタリング損失 ---
         prototypes = prototype_classifier.get_prototypes()
-        print(lt_features.size())
-        print(prototypes.size())
         M = torch.cat((lt_features, prototypes), dim=0)  # lt_features と prototypes を結合
 
         # ドット積を計算
@@ -111,9 +113,16 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         # --- 全体の損失 ---
         loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss + \
             prototype_classification_loss + selfsupervised_clustering_loss
-
+        """
+        print("train_wo_plt")
+        print("source_classification_loss:", source_classification_loss.item())
+        print("adversarial_curriculum_loss:", adversarial_curriculum_loss.item())
+        print("diverse_curriculum_loss:", diverse_curriculum_loss.item())
+        print("prototype_classification_loss:", prototype_classification_loss.item())
+        print("selfsupervised_clustering_loss:", selfsupervised_clustering_loss.item())
+        """
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
-    return total_loss / len(D_s_loader)
+    return loss

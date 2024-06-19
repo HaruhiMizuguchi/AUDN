@@ -87,4 +87,4 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         
         total_loss += loss.item()
         
-    return total_loss / len(D_s_loader)
+    return loss

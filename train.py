@@ -81,14 +81,18 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
 
         # --- 敵対的カリキュラム学習 L_adv ---
-        adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
-                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))) + \
-                                        torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)))
-                                        
+        if len(lt_common_domain_preds) == 0:
+            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
+                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps)))
+        else:
+            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
+                                            torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))) + \
+                                            torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)))
+
         # --- 多様性カリキュラム学習 L_div ---
-        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(ut_preds), dim=1))) \
+        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(torch.clamp(ut_preds, min=eps)), dim=1))) \
                                     - torch.mean(torch.sum(source_classifier(lt_features[private_label_indices]) * \
-                                        torch.log(source_classifier(lt_features[private_label_indices]))))
+                                        torch.log(torch.clamp(source_classifier(lt_features[private_label_indices]), min=eps))))
                                     
         # --- プロトタイプ分類器の学習 ---
         # --- クロスエントロピー L_p ---
@@ -107,46 +111,21 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         p = F.softmax(similarities, dim=1)
 
         # エントロピーを計算
-        selfsupervised_clustering_loss = -torch.mean(torch.sum(p * torch.log(p), dim=1))
+        selfsupervised_clustering_loss = -torch.mean(torch.sum(p * torch.log(torch.clamp(p, min=eps)), dim=1))
         
         # --- 全体の損失 ---
         loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss + \
-            protopyte_classification_loss + selfsupervised_clustering_loss
-
+            prototype_classification_loss + selfsupervised_clustering_loss
+        """
+        print("train")
+        print("source_classification_loss:", source_classification_loss.item())
+        print("adversarial_curriculum_loss:", adversarial_curriculum_loss.item())
+        print("diverse_curriculum_loss:", diverse_curriculum_loss.item())
+        print("prototype_classification_loss:", prototype_classification_loss.item())
+        print("selfsupervised_clustering_loss:", selfsupervised_clustering_loss.item())
+        """
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
-    return total_loss / len(D_s_loader)
-
-def validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, target_test_loader, w_0):
-    """
-    検証データでモデルの性能を評価する関数
-
-    Args:
-        feature_extractor (nn.Module): 特徴抽出器
-        source_classifier (nn.Module): ソースラベル分類器
-        prototype_classifier (nn.Module): プロトタイプ分類器
-        target_loader (DataLoader): ターゲットドメインのデータローダー
-        w_0 (float): 転送スコアの閾値
-
-    Returns:
-        float: 平均クラス精度
-    """
-
-    feature_extractor.eval()
-    source_classifier.eval()
-    prototype_classifier.eval()
-
-    correct = 0
-    total = 0
-
-    with torch.no_grad():
-        for data, label in target_test_loader:
-            data, label = data.to(device), label.to(device)
-            features = feature_extractor(data)
-            preds = predict(features, source_classifier, domain_discriminator, prototype_classifier, w_0)
-            correct += (preds == label).sum().item()
-            total += label.size(0)
-
-    return correct / total
+    return loss

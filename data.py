@@ -85,7 +85,7 @@ def create_dataset_dataloader(dataset_name, source_domain, target_domain, batch_
     # データローダを作成
     D_s_loader = DataLoader(D_s, batch_size=batch_size, shuffle=True)
     D_ut_train_loader = DataLoader(D_ut_train, batch_size=batch_size, shuffle=True)
-    D_t_test_loader = DataLoader(D_t_test, batch_size=batch_size, shuffle=False)
+    D_t_test_loader = DataLoader(D_t_test, shuffle=False)
     
     # NaNのチェック
     """print("Checking source domain data:")

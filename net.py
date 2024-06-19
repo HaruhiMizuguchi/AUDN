@@ -22,7 +22,6 @@ class feature_extractor(nn.Module):
     def __init__(self):
         super().__init__()
         self.resnet = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-        #self.resnet = resnet50()
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])  # 最終層を除去
 
     def forward(self, x):
@@ -122,6 +121,6 @@ class prototype_classifier(nn.Module):
         """
         プロトタイプを取得するメソッド
         """
-        print("proto size",self.prototypes[0].size())
+        # print("proto size",self.prototypes[0].size())
         prototypes = torch.stack([proto.detach().squeeze(0) for proto in self.prototypes])
         return prototypes
