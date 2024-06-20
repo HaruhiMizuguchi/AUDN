@@ -6,14 +6,15 @@ from globals import *
 def calculate_transfer_score(x, source_classifier, domain_discriminator):
     return source_classifier(x).max() + domain_discriminator(x)
 
+def calculate_transfer_score_debug(x, source_classifier, domain_discriminator):
+    return source_classifier(x).max() + domain_discriminator(x), source_classifier(x).max(), domain_discriminator(x)
+
 def get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds):
     ws = torch.stack([calculate_transfer_score(x, source_classifier, domain_discriminator) for x in ut_features])
     if torch.isnan(ws).any():
         print("NaN found in ws in get source weights")
         
     # Debugging for w_alpha
-    # print(f"\nw_alpha:",config.w_alpha)
-    # print("ws:",ws.flatten())
     valid_ws = ws.reshape(-1, 1).flatten() >= config.w_alpha
     print(f"sum(valid_ws): {torch.sum(valid_ws)}")
     
@@ -23,11 +24,8 @@ def get_source_weights(ut_features, s_label, source_classifier, domain_discrimin
     else:
         V = torch.sum(ut_preds[valid_ws], axis=0) / torch.sum(valid_ws).item()
 
-    if torch.isnan(V).any():
-        print("NaN found in V in get source weights")
     weights = torch.stack([V[label_idx] for label_idx in s_label])
-    if torch.isnan(weights).any():
-        print("NaN found in weights in get source weights")
+
     return weights
 
 def predict(feature, source_classifier, domain_discriminator, prototype_classifier, w_0):
@@ -35,7 +33,7 @@ def predict(feature, source_classifier, domain_discriminator, prototype_classifi
     if w > w_0:
         return torch.argmax(source_classifier(feature))
     else:
-        return torch.argmax(prototype_classifier(feature))
+        return torch.argmax(prototype_classifier(feature,inference_mode=True))
     
 def validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, target_test_loader, w_0):
     """
@@ -58,14 +56,22 @@ def validate(feature_extractor, source_classifier, domain_discriminator, prototy
 
     correct = 0
     total = 0
-
+    transferrable = 0
+    ws = []
     with torch.no_grad():
         for data, label in target_test_loader:
             data, label = data.to(device), label.to(device)
-            features = feature_extractor(data)
-            preds = predict(features, source_classifier, domain_discriminator, prototype_classifier, w_0)
+            feature = feature_extractor(data)
+            preds = predict(feature, source_classifier, domain_discriminator, prototype_classifier, w_0)
             if preds.item() == label.item():
                 correct += 1
             total += 1
-
+            if total < 5:
+                w, s, d = calculate_transfer_score_debug(feature, source_classifier, domain_discriminator)
+                ws.append([w.item(),s.item(),d.item()])
+            if calculate_transfer_score(feature, source_classifier, domain_discriminator) > w_0:
+                transferrable += 1
+    
+    print("num transferrable = ",transferrable)
+    print("ws = ",ws)
     return correct / total
