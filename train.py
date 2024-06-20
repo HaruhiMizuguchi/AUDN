@@ -82,11 +82,11 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
 
         # --- 敵対的カリキュラム学習 L_adv ---
         if len(lt_common_domain_preds) == 0:
-            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
-                                        torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps)))
+            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps)).flatten()) + \
+                                        torch.mean((ut_transfer_scores >= config.w_alpha).float().flatten() * torch.log(torch.clamp(ut_domain_preds, min=eps)).flatten())
         else:
-            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))) + \
-                                            torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))) + \
+            adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps)).flatten()) + \
+                                            torch.mean((ut_transfer_scores >= config.w_alpha).float().flatten() * torch.log(torch.clamp(ut_domain_preds, min=eps)).flatten()) + \
                                             torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)))
 
         # --- 多様性カリキュラム学習 L_div ---

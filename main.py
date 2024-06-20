@@ -9,7 +9,7 @@ from net import feature_extractor, source_classifier, domain_discriminator, prot
 # モデルのインスタンス化
 feature_extractor = feature_extractor().to(device)
 source_classifier = source_classifier(n_source_classes).to(device)
-domain_discriminator = domain_discriminator(alpha).to(device)
+domain_discriminator = domain_discriminator(grl_alpha).to(device)
 prototype_classifier = prototype_classifier(tau).to(device)
 
 # 最適化アルゴリズム

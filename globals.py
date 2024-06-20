@@ -52,5 +52,5 @@ class Config:
 config = Config()
 
 eps = 1e-6
-
+grl_alpha = 1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

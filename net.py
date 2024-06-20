@@ -2,18 +2,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet50, ResNet50_Weights
+from torch.autograd import Function
 from globals import *
 
-class GradientReverseLayer(nn.Module):
-    """
-    勾配反転層 (GRL) を実装するクラス
-    """
+class GradientReverseLayer(Function):
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.alpha = alpha
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        output = grad_output.neg() * ctx.alpha
+        return output, None
+
+class GradientReverseModule(nn.Module):
     def __init__(self, alpha):
         super().__init__()
         self.alpha = alpha
 
     def forward(self, x):
-        return x * -self.alpha  # 勾配を反転させる処理
+        return GradientReverseLayer.apply(x, self.alpha)
 
 class feature_extractor(nn.Module):
     """
@@ -39,7 +48,6 @@ class source_classifier(nn.Module):
         super().__init__()
         self.classifier = nn.Sequential(
             nn.Linear(2048, 256),  # ボトルネック層
-            nn.ReLU(),
             nn.Linear(256, num_source_classes)  # 全結合層
         )
 
@@ -58,10 +66,9 @@ class domain_discriminator(nn.Module):
     """
     def __init__(self, alpha):
         super().__init__()
-        self.grl = GradientReverseLayer(alpha)  # GRLをインスタンス化
+        self.grl = GradientReverseModule(alpha)  # GRLをインスタンス化
         self.discriminator = nn.Sequential(
             nn.Linear(2048, 256),  # ボトルネック層
-            nn.ReLU(),
             self.grl,  # GRLのインスタンスを使用
             nn.Linear(256, 1024),
             nn.ReLU(),
@@ -89,7 +96,7 @@ class prototype_classifier(nn.Module):
         self.tau = tau  # 温度パラメータτ
 
     def forward(self, x, inference_mode=False):
-        x = F.relu(self.bottleneck(x))
+        x = self.bottleneck(x)
         if inference_mode:
             # 推論モードではn_source_classes以上のラベルを持つプロトタイプのみ使用
             active_prototypes = torch.stack([proto for proto, label in zip(self.prototypes, self.prototype_labels) if label >= n_source_classes])
@@ -98,7 +105,7 @@ class prototype_classifier(nn.Module):
             active_prototypes = torch.stack(list(self.prototypes))
             active_labels = self.prototype_labels
 
-        active_prototypes = F.relu(self.bottleneck(active_prototypes.squeeze(1)))
+        active_prototypes = self.bottleneck(active_prototypes.squeeze(1))
         similarities = F.cosine_similarity(x.unsqueeze(1), active_prototypes.unsqueeze(0), dim=2)  # コサイン類似度計算
         outputs = F.softmax(similarities / self.tau, dim=1)
         
