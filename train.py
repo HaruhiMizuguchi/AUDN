@@ -41,23 +41,24 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
     s_iter = iter(D_s_loader)
     ut_iter = iter(D_ut_train_loader)
     lt_iter = iter(D_lt_loader)
-    plt_iter = iter(D_plt_loader)
+    plt_iter = iter(D_plt_loader) if D_plt_loader is not None else iter([])
     
-    # Vの計算
-    all_ut_features = []
-    for data, label in D_ut_train_loader:
-        all_ut_features.append(data)
-    all_ut_features = feature_extractor(torch.cat(all_ut_features, dim=0).to(device))
-    ut_preds = source_classifier(all_ut_features)
-    V = calculate_V(all_ut_features, source_classifier, domain_discriminator, ut_preds)
-    
-    # --- 自己教師ありクラスタリング損失 L_nc のMを計算---
-    all_lt_features = []
-    for data, label in D_lt_loader:
-        all_lt_features.append(data)
-    all_lt_features = feature_extractor(torch.cat(all_lt_features, dim=0).to(device))
-    prototypes = prototype_classifier.get_prototypes()
-    M = torch.cat((lt_features, prototypes), dim=0)
+    with torch.no_grad():
+        # Vの計算
+        all_ut_features = []
+        for data, label in D_ut_train_loader:
+            all_ut_features.append(data.to(device))
+        all_ut_features = feature_extractor(torch.cat(all_ut_features, dim=0))
+        ut_preds = source_classifier(all_ut_features)
+        V = calculate_V(all_ut_features, source_classifier, domain_discriminator, ut_preds)
+        
+        # --- 自己教師ありクラスタリング損失 L_nc のMを計算---
+        all_lt_features = []
+        for data, label in D_lt_loader:
+            all_lt_features.append(data.to(device))
+        all_lt_features = feature_extractor(torch.cat(all_lt_features, dim=0))
+        prototypes = prototype_classifier.get_prototypes()
+        M = torch.cat((all_lt_features, prototypes), dim=0)
     
     # 最長のDataloaderに合わせてイテレーション
     for (s_data, s_label), (ut_data, _), (lt_data, lt_label), (plt_data, plt_label) in tqdm(itertools.zip_longest(s_iter, ut_iter, lt_iter, plt_iter, fillvalue=(None, None))):
@@ -110,10 +111,9 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
             lt_features = feature_extractor(lt_data)
             lt_preds = source_classifier(lt_features)
             prototype_lt_preds = prototype_classifier(lt_features)
-            lt_common_domain_preds = domain_discriminator(lt_features[common_label_indices])
-            # 共通ラベルのインデックスを取得
             common_label_indices = (lt_label < n_source_classes).nonzero().squeeze()
             private_label_indices = (lt_label >= n_source_classes).nonzero().squeeze()
+            lt_common_domain_preds = domain_discriminator(lt_features[common_label_indices])
             # --- ソースラベル分類器の学習 L_C ---
             if common_label_indices.numel() > 0:
                 source_classification_loss += F.cross_entropy(lt_preds[common_label_indices], lt_label[common_label_indices])

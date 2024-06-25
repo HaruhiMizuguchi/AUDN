@@ -42,10 +42,15 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
     
     # Vの計算
     all_ut_features = []
-    for data, label in D_ut_train_loader:
-        all_ut_features.append(data)
-    all_ut_features = feature_extractor(torch.cat(all_ut_features, dim=0).to(device))
-    ut_preds = source_classifier(all_ut_features.to(device))
+    """for data, label in D_ut_train_loader:
+        with torch.no_grad():
+            features = feature_extractor(data.to(device))
+        all_ut_features.append(features)"""
+    with torch.no_grad():
+        for data, label in D_ut_train_loader:
+            all_ut_features.append(feature_extractor(data.to(device)))
+        all_ut_features = torch.cat(all_ut_features, dim=0)
+        ut_preds = source_classifier(all_ut_features)
     V = calculate_V(all_ut_features, source_classifier, domain_discriminator, ut_preds)
     
     for (s_data, s_label), (ut_data, _) in tqdm(zip(D_s_loader, D_ut_train_loader)):
