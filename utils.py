@@ -7,9 +7,9 @@ def calculate_transfer_score(x, source_classifier, domain_discriminator):
     return source_classifier(x).max() + domain_discriminator(x)
 
 def calculate_transfer_score_debug(x, source_classifier, domain_discriminator):
-    return source_classifier(x).max() + domain_discriminator(x), source_classifier(x).max(), domain_discriminator(x)
+    return source_classifier(x).max() + domain_discriminator(x), source_classifier(x).max(), domain_discriminator(x), torch.argmax(source_classifier(x))
 
-def get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds):
+def calculate_V(ut_features, source_classifier, domain_discriminator, ut_preds):
     ws = torch.stack([calculate_transfer_score(x, source_classifier, domain_discriminator) for x in ut_features])
     if torch.isnan(ws).any():
         print("NaN found in ws in get source weights")
@@ -20,12 +20,15 @@ def get_source_weights(ut_features, s_label, source_classifier, domain_discrimin
     
     if torch.sum(valid_ws) == 0:
         # Set V to all ones if no valid ws is found
-        V = torch.ones_like(ut_preds[0])
+        V = torch.ones_like(ut_preds[0]) / len(ut_preds[0])
     else:
         V = torch.sum(ut_preds[valid_ws], axis=0) / torch.sum(valid_ws).item()
 
-    weights = torch.stack([V[label_idx] for label_idx in s_label])
+    return V
 
+def get_source_weights(s_label, V):
+    
+    weights = torch.stack([V[label_idx] for label_idx in s_label])
     return weights
 
 def predict(feature, source_classifier, domain_discriminator, prototype_classifier, w_0):
@@ -67,8 +70,8 @@ def validate(feature_extractor, source_classifier, domain_discriminator, prototy
                 correct += 1
             total += 1
             if total < 5:
-                w, s, d = calculate_transfer_score_debug(feature, source_classifier, domain_discriminator)
-                ws.append([w.item(),s.item(),d.item()])
+                w, s, d, l = calculate_transfer_score_debug(feature, source_classifier, domain_discriminator)
+                ws.append([w.item(),s.item(),d.item(), l.item()])
             if calculate_transfer_score(feature, source_classifier, domain_discriminator) > w_0:
                 transferrable += 1
     

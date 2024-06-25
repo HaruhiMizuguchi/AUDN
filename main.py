@@ -27,6 +27,13 @@ D_lt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # ラベル付き�
 D_plt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # 疑似ラベル付きターゲットデータ (初期状態は空)
 labels_of_prototypes = []
 
+D_s_label = [D_s[i][1] for i in range(len(D_s))]
+print("D_s_label:",set(D_s_label))
+D_t_test_label = [D_t_test[i][1] for i in range(len(D_t_test))]
+print("D_t_test_label:",set(D_t_test_label))
+D_ut_label = [D_ut_train[i][1] for i in range(len(D_ut_train))]
+print("D_ut_label:",set(D_ut_label))
+
 config.total_ite = batch_size * (AL_round + 1)
 print("total_ite:",config.total_ite)
 # 学習
@@ -43,16 +50,22 @@ for round in range(AL_round):
         CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, n_source_classes, k=n_r, n_r=n_r)
     
     # --- 学習 ---
-    
+    """
     if D_plt_loader == None:
         loss = train_wo_plt.train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
                         D_s_loader, D_ut_train_loader, D_lt_loader, optimizer)
     else:
         loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
                         D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
+    """
+    loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
+                        D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
     print(f"Loss: {loss:.4f}")
     
     # --- 検証 ---
     accuracy = validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
     print(f"Accuracy: {accuracy:.4f}")
+
 print(len(D_t_test_loader))
+plt_labels = [D_plt[i][1].item() for i in range(len(D_plt))]
+print(set(plt_labels))

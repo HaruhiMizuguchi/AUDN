@@ -40,6 +40,14 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
     
     total_loss = 0
     
+    # Vの計算
+    all_ut_features = []
+    for data, label in D_ut_train_loader:
+        all_ut_features.append(data)
+    all_ut_features = feature_extractor(torch.cat(all_ut_features, dim=0).to(device))
+    ut_preds = source_classifier(all_ut_features.to(device))
+    V = calculate_V(all_ut_features, source_classifier, domain_discriminator, ut_preds)
+    
     for (s_data, s_label), (ut_data, _) in tqdm(zip(D_s_loader, D_ut_train_loader)):
         s_data, s_label, ut_data = s_data.to(device), s_label.to(device), ut_data.to(device)
         
@@ -64,7 +72,7 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         
         # --- 転送スコアと重みの計算 ---
         ut_transfer_scores = torch.stack([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
-        source_weights = get_source_weights(ut_features, s_label, source_classifier, domain_discriminator, ut_preds)
+        source_weights = get_source_weights(s_label, V)
         
         # --- 敵対的カリキュラム学習 L_adv ---)
         #adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \

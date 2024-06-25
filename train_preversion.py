@@ -11,10 +11,10 @@ from CNTGE import run_CNTGE
 from utils import *
 from globals import *
 
-def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                D_s_loader, D_ut_train_loader, D_lt_loader, optimizer):
+def train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
+                D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer):
     """
-    疑似ラベル付きデータセットが空の場合に、1エポック分の学習を行う関数
+    1エポック分の学習を行う関数
 
     Args:
         feature_extractor (nn.Module): 特徴抽出器
@@ -24,6 +24,7 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         D_s_loader (DataLoader): ソースドメインのデータローダー
         D_ut_train_loader (DataLoader): ターゲットドメインのラベルなしデータのデータローダー
         D_lt_loader (DataLoader): ターゲットドメインのラベルつきデータのデータローダー
+        D_plt_loader (DataLoader): ターゲットドメインの疑似ラベルつきデータのデータローダー
         optimizer (optim.Optimizer): 最適化アルゴリズム
         alpha (float): 勾配反転層の重み係数
         w_0 (float): 転送スコアの閾値
@@ -38,7 +39,7 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
     
     total_loss = 0
     
-    for (s_data, s_label), (ut_data, _), (lt_data, lt_label) in tqdm(zip(D_s_loader, D_ut_train_loader, D_lt_loader)):
+    for (s_data, s_label), (ut_data, _), (lt_data, lt_label), (plt_data, plt_label) in tqdm(zip(D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader)):
         
         config.t += 1
         if config.t <= config.total_ite:
@@ -47,11 +48,12 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         s_data, s_label = s_data.to(device), s_label.to(device)
         ut_data = ut_data.to(device)
         lt_data, lt_label = lt_data.to(device), lt_label.to(device)
-        
+        plt_data, plt_label = plt_data.to(device), plt_label.to(device)
         # 特徴抽出
         s_features = feature_extractor(s_data)
         ut_features = feature_extractor(ut_data)
         lt_features = feature_extractor(lt_data)
+        plt_features = feature_extractor(plt_data)
         
         # --- ソースラベル分類器の学習 L_C ---
         s_preds = source_classifier(s_features)
@@ -66,11 +68,8 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         if common_label_indices.numel() > 0:
             source_classification_loss = F.cross_entropy(s_preds, s_label) + \
                                         F.cross_entropy(lt_preds[common_label_indices], lt_label[common_label_indices])
-            #print("souce_classification_loss,s:",s_preds.size(), s_label.size())
-            #print("souce_classification_loss,lt:",lt_preds.size(), lt_label.size())
         else:
             source_classification_loss = F.cross_entropy(s_preds, s_label)
-            #print("souce_classification_loss,s:",s_preds.size(), s_label.size())
         
         # --- ドメイン分類器の学習 ---
         s_domain_preds = domain_discriminator(s_features)
@@ -85,29 +84,21 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         if len(lt_common_domain_preds) == 0:
             adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps)).flatten()) + \
                                         torch.mean((ut_transfer_scores >= config.w_alpha).float().flatten() * torch.log(torch.clamp(ut_domain_preds, min=eps)).flatten())
-            #print("adversarial_curriculum_loss,source_weights:",source_weights.size(),torch.log(torch.clamp(1 - s_domain_preds, min=eps)).size(),(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))).size())
-            #print("adversarial_curriculum_loss,source_weights:",(ut_transfer_scores >= config.w_alpha).float().size(),torch.log(torch.clamp(ut_domain_preds, min=eps)).size())
         else:
             adversarial_curriculum_loss = torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps)).flatten()) + \
                                             torch.mean((ut_transfer_scores >= config.w_alpha).float().flatten() * torch.log(torch.clamp(ut_domain_preds, min=eps)).flatten()) + \
-                                            torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)).flatten())
-            #print("adversarial_curriculum_loss,source_weights:",source_weights.size(),torch.log(torch.clamp(1 - s_domain_preds, min=eps)).flatten().size(),(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps)).flatten()).size())
-            #print("adversarial_curriculum_loss,source_weights:",(ut_transfer_scores >= config.w_alpha).float().flatten().size(),torch.log(torch.clamp(ut_domain_preds, min=eps)).flatten().size())
-            #print("adversarial_curriculum_loss,source_weights:",torch.log(torch.clamp(lt_common_domain_preds, min=eps)).size())
-        
+                                            torch.mean(torch.log(torch.clamp(lt_common_domain_preds, min=eps)))
+
         # --- 多様性カリキュラム学習 L_div ---
         diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(torch.clamp(ut_preds, min=eps)), dim=1))) \
                                     - torch.mean(torch.sum(source_classifier(lt_features[private_label_indices]) * \
                                         torch.log(torch.clamp(source_classifier(lt_features[private_label_indices]), min=eps))))
-        #print("diverse:",(ut_transfer_scores < config.w_alpha).float().size(),ut_preds.size(),torch.log(torch.clamp(ut_preds, min=eps)).size(),torch.sum(ut_preds * torch.log(torch.clamp(ut_preds, min=eps)), dim=1).size(),((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(torch.clamp(ut_preds, min=eps)), dim=1))).size())
-        #print("diverse:",source_classifier(lt_features[private_label_indices]).size(),torch.log(torch.clamp(source_classifier(lt_features[private_label_indices]), min=eps)).size()
-              #, (source_classifier(lt_features[private_label_indices]) * torch.log(torch.clamp(source_classifier(lt_features[private_label_indices]), min=eps))).size()
-              #, torch.sum(source_classifier(lt_features[private_label_indices]) * torch.log(torch.clamp(source_classifier(lt_features[private_label_indices]), min=eps))).size())
                                     
         # --- プロトタイプ分類器の学習 ---
         # --- クロスエントロピー L_p ---
+        prototype_plt_preds = prototype_classifier(plt_features)
         prototype_lt_preds = prototype_classifier(lt_features)
-        prototype_classification_loss = F.cross_entropy(prototype_lt_preds, lt_label)
+        prototype_classification_loss = F.cross_entropy(prototype_plt_preds, plt_label) + F.cross_entropy(prototype_lt_preds, lt_label)
         
         # --- 自己教師ありクラスタリング損失 ---
         prototypes = prototype_classifier.get_prototypes()
@@ -126,7 +117,7 @@ def train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminato
         loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss + \
             prototype_classification_loss + selfsupervised_clustering_loss
         """
-        print("train_wo_plt")
+        print("train")
         print("source_classification_loss:", source_classification_loss.item())
         print("adversarial_curriculum_loss:", adversarial_curriculum_loss.item())
         print("diverse_curriculum_loss:", diverse_curriculum_loss.item())
