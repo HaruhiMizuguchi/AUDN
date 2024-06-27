@@ -39,15 +39,6 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
     source_classifier.train()
     domain_discriminator.train()
     
-    # --- 重みとバイアスの確認 ---
-    for name, param in source_classifier.named_parameters():
-        print(f"--- {name} ---")
-        print("平均:", param.mean().item())
-        print("標準偏差:", param.std().item())
-        print("最大値:", param.max().item())
-        print("最小値:", param.min().item())
-    # --- ここまで ---
-    
     # 各データローダーのイテレーターを作成
     s_iter = iter(D_s_loader)
     ut_iter = iter(D_ut_train_loader)
@@ -100,8 +91,8 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
             diverse_curriculum_loss = diverse_curriculum_loss - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(ut_preds), dim=1)))
         
         # --- 全体の損失 ---
-        loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss
-
+        #loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss
+        loss = source_classification_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

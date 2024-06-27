@@ -70,11 +70,18 @@ def validate(feature_extractor, source_classifier, domain_discriminator, prototy
                 correct += 1
             total += 1
             if total < 5:
-                w, s, d, l = calculate_transfer_score_debug(feature, source_classifier, domain_discriminator)
-                ws.append([w.item(),s.item(),d.item(), l.item()])
+                print(f"G_C output {total}:",source_classifier(feature))
+            w, s, d, l = calculate_transfer_score_debug(feature, source_classifier, domain_discriminator)
+            ws.append([w.item(),s.item(),d.item(), preds.item(), l.item()])
             if calculate_transfer_score(feature, source_classifier, domain_discriminator) > w_0:
                 transferrable += 1
     
     print("num transferrable = ",transferrable)
-    print("ws = ",ws)
+    print("ws = ",ws[0:6])
+    # --- ソースデータのクラスバイアスを確認 ---
+    from collections import Counter
+    ws_labels = [label for _,_,_, label in ws]
+    ws_label_counts = Counter(ws_labels)
+    print("予測ラベル分布:", ws_label_counts)
+    # --- ここまで ---
     return correct / total

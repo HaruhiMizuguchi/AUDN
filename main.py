@@ -50,8 +50,8 @@ loss = train_warmup.train_warmup_epoch(feature_extractor, source_classifier, dom
     
 # --- 学習ループ ---
 
-#for round in range(AL_round):
-for round in range(1):
+for round in range(AL_round):
+#for round in range(1):
     print(f"Round {round+1}/{AL_round}")
     
     # --- CNTGE ---

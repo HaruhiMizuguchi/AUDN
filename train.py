@@ -37,15 +37,6 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
     domain_discriminator.train()
     prototype_classifier.train()
     
-    # --- 重みとバイアスの確認 ---
-    for name, param in source_classifier.named_parameters():
-        print(f"--- {name} ---")
-        print("平均:", param.mean().item())
-        print("標準偏差:", param.std().item())
-        print("最大値:", param.max().item())
-        print("最小値:", param.min().item())
-    # --- ここまで ---
-    
     # 各データローダーのイテレーターを作成
     s_iter = iter(D_s_loader)
     ut_iter = iter(D_ut_train_loader)
@@ -139,6 +130,8 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
             if i == 0:
                 print("lt div 1:",source_classifier(lt_features[private_label_indices]))
                 print("lt div 2:",torch.log(torch.clamp(source_classifier(lt_features[private_label_indices]), min=eps)))
+                print((torch.mean(torch.sum(source_classifier(lt_features[private_label_indices]) \
+                * torch.log(torch.clamp(source_classifier(lt_features[private_label_indices]), min=eps))))))
             # --- プロトタイプ分類器の学習 L_p ---
             prototype_classification_loss = prototype_classification_loss + F.cross_entropy(prototype_lt_preds, lt_label)
             
@@ -153,8 +146,9 @@ def train_epoch(feature_extractor, source_classifier, domain_discriminator, prot
         #print("is not None")
         
         # --- 全体の損失 ---
-        loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss + \
-            prototype_classification_loss + selfsupervised_clustering_loss
+        #loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss + \
+        #    prototype_classification_loss + selfsupervised_clustering_loss
+        loss = source_classification_loss
         
         optimizer.zero_grad()
         loss.backward()
