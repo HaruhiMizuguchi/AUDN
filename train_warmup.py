@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import torch
+import itertools
 import torch.nn as nn
 import torch.optim as optim
 from torch.nn import functional as F
@@ -38,6 +39,19 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
     source_classifier.train()
     domain_discriminator.train()
     
+    # --- 重みとバイアスの確認 ---
+    for name, param in source_classifier.named_parameters():
+        print(f"--- {name} ---")
+        print("平均:", param.mean().item())
+        print("標準偏差:", param.std().item())
+        print("最大値:", param.max().item())
+        print("最小値:", param.min().item())
+    # --- ここまで ---
+    
+    # 各データローダーのイテレーターを作成
+    s_iter = iter(D_s_loader)
+    ut_iter = iter(D_ut_train_loader)
+    
     total_loss = 0
     
     # Vの計算
@@ -53,51 +67,43 @@ def train_warmup_epoch(feature_extractor, source_classifier, domain_discriminato
         ut_preds = source_classifier(all_ut_features)
     V = calculate_V(all_ut_features, source_classifier, domain_discriminator, ut_preds)
     
-    for (s_data, s_label), (ut_data, _) in tqdm(zip(D_s_loader, D_ut_train_loader)):
-        s_data, s_label, ut_data = s_data.to(device), s_label.to(device), ut_data.to(device)
+    for (s_data, s_label), (ut_data, _) in tqdm(itertools.zip_longest(s_iter, ut_iter, fillvalue=(None, None))):
+        
+        source_classification_loss = torch.tensor(0.0, requires_grad=True)
+        adversarial_curriculum_loss = torch.tensor(0.0, requires_grad=True)
+        diverse_curriculum_loss = torch.tensor(0.0, requires_grad=True)
         
         config.t += 1
         if config.t <= config.total_ite:
             config.w_alpha = w_0 - ((1 - config.t/config.total_ite) * alpha)
         
-        # 特徴抽出
-        s_features = feature_extractor(s_data)
-        ut_features = feature_extractor(ut_data)
-        
-        # --- ソースラベル分類器の学習 L_C ---
-        s_preds = source_classifier(s_features)
-        ut_preds = source_classifier(ut_features)
-
-        # 共通ラベルのデータのみで損失を計算
-        source_classification_loss = F.cross_entropy(s_preds, s_label)
-        
-        # --- ドメイン分類器の学習 ---
-        s_domain_preds = domain_discriminator(s_features)
-        ut_domain_preds = domain_discriminator(ut_features)
-        
-        # --- 転送スコアと重みの計算 ---
-        ut_transfer_scores = torch.stack([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
-        source_weights = get_source_weights(s_label, V)
-        
-        # --- 敵対的カリキュラム学習 L_adv ---)
-        #adversarial_curriculum_loss = torch.mean(source_weights * torch.log(1 - s_domain_preds).flatten()) + \
-        #                                torch.mean((ut_transfer_scores >= w_alpha).float() * torch.log(ut_domain_preds))
-        s_domain_loss = source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps))
-        ut_domain_loss = (ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps))
-        adversarial_curriculum_loss = torch.mean(s_domain_loss) + torch.mean(ut_domain_loss)
-        
-                                        
-        # --- 多様性カリキュラム学習 L_div ---
-        diverse_curriculum_loss = - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(ut_preds), dim=1)))
+        if s_data is not None:
+            s_data, s_label = s_data.to(device), s_label.to(device)
+            s_features = feature_extractor(s_data)
+            s_preds = source_classifier(s_features)
+            s_domain_preds = domain_discriminator(s_features)
+            source_weights = get_source_weights(s_label, V)
+            # --- ソースラベル分類器の学習 L_C ---
+            source_classification_loss = source_classification_loss + F.cross_entropy(s_preds, s_label)
+            # --- 敵対的カリキュラム学習 L_adv ---
+            adversarial_curriculum_loss = adversarial_curriculum_loss + torch.mean(source_weights * torch.log(torch.clamp(1 - s_domain_preds, min=eps)))
+            
+        if ut_data is not None:
+            ut_data = ut_data.to(device)
+            ut_features = feature_extractor(ut_data)
+            ut_preds = source_classifier(ut_features)
+            ut_domain_preds = domain_discriminator(ut_features)
+            ut_transfer_scores = torch.stack([calculate_transfer_score(ut_feature, source_classifier, domain_discriminator) for ut_feature in ut_features])
+            # --- 敵対的カリキュラム学習 L_adv ---
+            adversarial_curriculum_loss = adversarial_curriculum_loss + torch.mean((ut_transfer_scores >= config.w_alpha).float() * torch.log(torch.clamp(ut_domain_preds, min=eps)))
+            # --- 多様性カリキュラム学習 L_div ---
+            diverse_curriculum_loss = diverse_curriculum_loss - torch.mean((ut_transfer_scores < config.w_alpha).float() * (torch.sum(ut_preds * torch.log(ut_preds), dim=1)))
         
         # --- 全体の損失 ---
         loss = source_classification_loss - adversarial_curriculum_loss + diverse_curriculum_loss
-        # loss = source_classification_loss + diverse_curriculum_loss
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        
-        total_loss += loss.item()
         
     return loss

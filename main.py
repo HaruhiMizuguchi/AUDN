@@ -27,6 +27,13 @@ D_lt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # ラベル付き�
 D_plt = TensorDataset(torch.Tensor([]), torch.LongTensor([])) # 疑似ラベル付きターゲットデータ (初期状態は空)
 labels_of_prototypes = []
 
+# --- ソースデータのクラスバイアスを確認 ---
+from collections import Counter
+source_labels = [label for _, label in D_s]
+source_label_counts = Counter(source_labels)
+print("ソースデータのクラス分布:", source_label_counts)
+# --- ここまで ---
+
 D_s_label = [D_s[i][1] for i in range(len(D_s))]
 print("D_s_label:",set(D_s_label))
 D_t_test_label = [D_t_test[i][1] for i in range(len(D_t_test))]
@@ -34,34 +41,28 @@ print("D_t_test_label:",set(D_t_test_label))
 D_ut_label = [D_ut_train[i][1] for i in range(len(D_ut_train))]
 print("D_ut_label:",set(D_ut_label))
 
-config.total_ite = batch_size * (AL_round + 1)
+config.total_ite = len(D_s) / batch_size * (AL_round + 1)
 print("total_ite:",config.total_ite)
 # 学習
 # --- Warm Up ---
 loss = train_warmup.train_warmup_epoch(feature_extractor, source_classifier, domain_discriminator,
                 D_s_loader, D_ut_train_loader, optimizer)
-
+    
 # --- 学習ループ ---
-for round in range(AL_round):
+
+#for round in range(AL_round):
+for round in range(1):
     print(f"Round {round+1}/{AL_round}")
     
     # --- CNTGE ---
     D_ut_train, D_lt, D_plt, D_ut_train_loader, D_lt_loader, D_plt_loader, labels_of_prototypes = \
         CNTGE.run_CNTGE(D_ut_train, D_lt, D_plt, feature_extractor, source_classifier, domain_discriminator, prototype_classifier, labels_of_prototypes, n_source_classes, k=n_r, n_r=n_r)
-    
+    print(set([D_lt[i][1].item() for i in range(len(D_lt))]))
     # --- 学習 ---
-    """
-    if D_plt_loader == None:
-        loss = train_wo_plt.train_wo_plt_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                        D_s_loader, D_ut_train_loader, D_lt_loader, optimizer)
-    else:
-        loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
-                        D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
-    """
     loss = train.train_epoch(feature_extractor, source_classifier, domain_discriminator, prototype_classifier,
                         D_s_loader, D_ut_train_loader, D_lt_loader, D_plt_loader, optimizer)
     print(f"Loss: {loss:.4f}")
-    
+
     # --- 検証 ---
     accuracy = validate(feature_extractor, source_classifier, domain_discriminator, prototype_classifier, D_t_test_loader, w_0)
     print(f"Accuracy: {accuracy:.4f}")
